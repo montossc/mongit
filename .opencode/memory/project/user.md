@@ -1,14 +1,14 @@
 ---
 purpose: User identity, preferences, communication style
-updated: 2025-01-06
+updated: 2026-03-14
 ---
 
 # User Profile
 
 ## Identity
 
-- Name: huynhgiabuu
-- Git email: buub1309120@gmail.com
+- Name: NamPT
+- Git email: montossc@gmail.com
 
 ## Communication Preferences
 
@@ -17,21 +17,22 @@ updated: 2025-01-06
 
 ## Workflow Preferences
 
-- Git commits: Ask first before committing
+- Git commits: Auto-commit after verification passes
 - Beads updates: Ask first before modifying task state
-- Auto-actions: Disabled - always confirm before state changes
+- Auto-actions: Commit/push allowed; bead state changes require confirmation
 
 ## Technical Preferences
 
-- Runtime: Node.js
-- Language: TypeScript
-- Linter: oxlint
+- Frontend: TypeScript, Svelte 5, SvelteKit
+- Backend: Rust
+- Package manager: pnpm
+- Build: Vite (frontend), Cargo (backend)
 
 ## Rules to Always Follow
 
-- Run `npm run lint:fix` before any commit
-- Validate changes with `npm run typecheck`
-- Don't modify dist/ directly (it's built output)
+- Run `pnpm check` before any commit (svelte-check)
+- Run `cargo check` in src-tauri/ for Rust changes
+- Don't modify build/ or src-tauri/target/ directly (built output)
 - Ask before adding new dependencies
 - Ask before changing .opencode/ structure
 - Never commit secrets or .env files

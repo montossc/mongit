@@ -1,142 +1,108 @@
 ---
 purpose: Project roadmap with phases, milestones, and bead organization
-updated: 2026-02-12
+updated: 2026-03-14
 ---
 
 # Roadmap
 
 ## Overview
 
-| Phase  | Goal                                              | Status      | Beads |
-| ------ | ------------------------------------------------- | ----------- | ----- |
-| MVP    | Core `ock init` command with basic template       | Complete    | [#]   |
-| Extend | Additional commands (`/ship`, `/plan`, `/resume`) | Complete    | [#]   |
-| Polish | Error handling, docs, validation improvements     | Complete    | [#]   |
-| Scale  | Plugin system, custom templates, advanced config  | In Progress | [#]   |
-
-## Phase 1: MVP
-
-**Goal:** Users can run `ock init` to generate a working OpenCode project template.
-
-**Success Criteria:**
-
-- [x] `ock init` command creates project structure
-- [x] Generated files include AGENTS.md, skills, commands, memory
-- [x] Templates pass typecheck and lint
-- [x] Basic CLI prompts for project configuration
-
-**Beads:**
-
-| ID  | Title             | Type    | Status | Depends On |
-| --- | ----------------- | ------- | ------ | ---------- |
-| -   | Core init command | feature | closed | -          |
-| -   | Template bundling | task    | closed | -          |
-| -   | CLI prompts       | task    | closed | -          |
-
-**Out of Scope:**
-
-- Advanced customization
-- Plugin system
-- Multiple template options
+| Phase      | Goal                                          | Status      | Weeks  |
+| ---------- | --------------------------------------------- | ----------- | ------ |
+| Foundation | Technical spikes and architecture validation  | In Progress | 1-4    |
+| MVP        | Shippable MVP with core git operations        | Not Started | 5-16   |
+| V1.0       | Full solo developer workflow                  | Not Started | 17-28  |
+| V1.1       | Differentiation features (power-ups)          | Not Started | 29-40  |
+| V2.0       | Intelligence and platform expansion           | Not Started | 41+    |
 
 ---
 
-## Phase 2: Extend
+## Phase 1: Foundation (Weeks 1-4)
 
-**Goal:** Add essential OpenCode commands for common workflows.
-
-**Success Criteria:**
-
-- [x] `/ship` command for deployment workflows
-- [x] `/plan` command for implementation planning
-- [x] `/resume` command for continuing work
-- [x] `/handoff` command for session handoffs
-- [x] `/status` command for project state
-
-**Beads:**
-
-| ID  | Title           | Type    | Status | Depends On |
-| --- | --------------- | ------- | ------ | ---------- |
-| -   | Ship command    | feature | closed | MVP        |
-| -   | Plan command    | feature | closed | MVP        |
-| -   | Resume command  | feature | closed | MVP        |
-| -   | Handoff command | feature | closed | MVP        |
-| -   | Status command  | feature | closed | MVP        |
-
-**Dependencies:**
-
-- Requires MVP completion
-
----
-
-## Phase 3: Polish
-
-**Goal:** Improve quality, documentation, and error handling.
+**Goal:** Technical spikes and architecture validation
 
 **Success Criteria:**
 
-- [x] Comprehensive error messages with actionable guidance
-- [x] Documentation for all commands
-- [x] Validation scripts for template integrity
-- [x] Improved CLI UX with progress indicators
+- [x] Tauri + SvelteKit scaffold with working IPC
+- [ ] Canvas 2D commit graph rendering 10k+ commits at 60fps
+- [ ] git2 hybrid engine (reads via git2, writes via bundled git)
+- [ ] CodeMirror 6 diff viewer + FSEvents file watching
+- [ ] Design system tokens established
 
-**Beads:**
+**Spikes:**
 
-| ID  | Title               | Type | Status | Depends On |
-| --- | ------------------- | ---- | ------ | ---------- |
-| -   | Error handling      | task | closed | Extend     |
-| -   | Documentation       | task | closed | Extend     |
-| -   | Validation scripts  | task | closed | Extend     |
-| -   | CLI UX improvements | task | closed | Extend     |
-
-**Dependencies:**
-
-- Requires Extend completion
+| Spike | Title                                           | Status      |
+| ----- | ----------------------------------------------- | ----------- |
+| A     | Tauri + SvelteKit scaffold + IPC protocol       | Done        |
+| B     | Commit graph renderer (Canvas 2D, 10k+ commits) | Not Started |
+| C     | Git engine hybrid (git2 reads + git writes)     | Not Started |
+| D     | CodeMirror 6 diff/merge + FSEvents watching     | Not Started |
 
 ---
 
-## Phase 4: Scale
+## Phase 2: MVP Build (Weeks 5-16)
 
-**Goal:** Add advanced features for power users and customization.
+**Goal:** Shippable MVP with core git operations
 
 **Success Criteria:**
 
-- [ ] Plugin system for extending CLI functionality
-- [ ] Custom template support (user-defined templates)
-- [ ] Advanced configuration options
-- [ ] Template marketplace or sharing mechanism
-
-**Beads:**
-
-| ID  | Title            | Type    | Status | Depends On    |
-| --- | ---------------- | ------- | ------ | ------------- |
-| -   | Plugin system    | epic    | open   | Polish        |
-| -   | Custom templates | feature | open   | Polish        |
-| -   | Advanced config  | task    | open   | Polish        |
-| -   | Template sharing | epic    | open   | Plugin system |
-
-**Dependencies:**
-
-- Requires Polish completion
+- [ ] Repo home (open repo, recent repos, status overview)
+- [ ] Commit graph (visual DAG, branch labels, commit details)
+- [ ] Local changes workspace (file list, hunk/line staging, diff viewer)
+- [ ] Commit authoring (message, amend, push)
+- [ ] Branch operations (create, switch, delete, fetch, pull, push)
+- [ ] Conflict resolution (3-pane merge editor)
+- [ ] Keyboard shortcuts + command palette
+- [ ] macOS packaging (dmg, Homebrew cask)
 
 ---
 
-## Legend
+## Phase 3: V1.0 Release (Weeks 17-28)
 
-**Status:**
+**Goal:** Full solo developer workflow
 
-- `Not Started` - No work begun
-- `In Progress` - Active development
-- `Complete` - All beads closed
+- Enhanced commit graph (IntelliSort, collapse/expand, search)
+- History investigation (file history, blame, compare commits)
+- Advanced branch ops (merge, rebase, cherry-pick, interactive rebase)
+- Stash management
+- Safety net / undo system
+- Tag management
 
-**Type:**
+---
 
-- `task` - Tactical, single-session work
-- `feature` - New capability, multi-session
-- `epic` - Cross-domain, significant scope
-- `bug` - Fix for broken behavior
+## Phase 4: V1.1 Power-Up (Weeks 29-40)
+
+**Goal:** Differentiation features
+
+- Work buckets (named changelists)
+- Shelf (persistent WIP storage)
+- Advanced blame (hide revision, revision range)
+- Pre-commit check pipeline
+- Workspace context per branch
+- Log index / full-text search
+
+---
+
+## Phase 5: V2.0 Expansion (Weeks 41+)
+
+**Goal:** Intelligence and platform expansion
+
+- Stacked diffs (visual dependency chain)
+- AI workflow intelligence (semantic conflicts, diff narration, rebase advisor)
+- Windows support (Tauri WebView2)
+- Optional cloud features (settings sync, backup)
+
+---
+
+## Risk Register
+
+| Risk                               | Severity | Mitigation                                            |
+| ---------------------------------- | -------- | ----------------------------------------------------- |
+| Commit graph rendering at scale    | HIGH     | Budget 4-6 weeks; Canvas 2D spike first               |
+| libgit2 hook/signing gaps          | MEDIUM   | Hybrid pattern; always shell out for writes            |
+| Scope creep into team features     | MEDIUM   | Strict persona discipline; V2+ for team features       |
+| Performance regression over time   | MEDIUM   | Continuous benchmarking from MVP; perf budget per op   |
 
 ---
 
 _Update this file when phases complete or roadmap changes._
-_Use `/plan` command to create detailed plans for active phases._

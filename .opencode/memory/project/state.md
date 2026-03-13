@@ -1,84 +1,77 @@
 ---
 purpose: Current project state, active decisions, blockers, and position tracking
-updated: 2026-02-12
+updated: 2026-03-14
 ---
 
 # State
 
 ## Current Position
 
-**Active Bead:** (none active)
-**Status:** Ready for new work
-**Started:** 2026-02-12
-**Phase:** Scale
+**Active Work:** Phase 1 — Foundation spikes
+**Status:** Project scaffolded, spikes pending
+**Started:** 2026-03-13
+**Phase:** Foundation
 
 ## Recent Completed Work
 
-| Bead | Title                 | Completed | Summary                                           |
-| ---- | --------------------- | --------- | ------------------------------------------------- |
-| -    | Polish phase tasks    | 2026-02   | Error handling, docs, validation, UX improvements |
-| -    | Extend phase commands | 2026-02   | Ship, plan, resume, handoff, status commands      |
-| -    | MVP core features     | 2026-02   | Init command, template bundling, CLI prompts      |
+| Date       | Title                        | Summary                                                      |
+| ---------- | ---------------------------- | ------------------------------------------------------------ |
+| 2026-03-14 | Project scaffold             | Tauri 2.0 + SvelteKit + Rust backend, all builds passing     |
+| 2026-03-13 | Research & product plan      | 8 research docs, product plan locked, frontend decision made |
+| 2026-03-14 | Git repo + remote            | Initialized, pushed to github.com/montossc/mongit            |
 
 ## Active Decisions
 
-| Date       | Decision          | Rationale                                  | Impact                          |
-| ---------- | ----------------- | ------------------------------------------ | ------------------------------- |
-| 2026-02-12 | Scale phase focus | Core complete, ready for advanced features | Plugin system, custom templates |
+| Date       | Decision                              | Rationale                                                   |
+| ---------- | ------------------------------------- | ----------------------------------------------------------- |
+| 2026-03-13 | Svelte 5 + SvelteKit over React       | Smaller bundle, GitButler precedent                         |
+| 2026-03-13 | Canvas 2D for commit graph            | DOM breaks at 1000+ nodes, WebGL overkill                   |
+| 2026-03-13 | git2 reads + bundled git writes       | GitHub Desktop pattern; git2 lacks hooks/signing            |
+| 2026-03-13 | notify crate for file watching        | Native FSEvents on macOS                                    |
+| 2026-03-14 | CSP includes unsafe-inline for styles | Required for CodeMirror 6                                   |
 
 ## Blockers
 
-| Bead | Blocker | Since | Owner |
-| ---- | ------- | ----- | ----- |
-| -    | (none)  | -     | -     |
+| Item    | Blocker | Since | Notes |
+| ------- | ------- | ----- | ----- |
+| (none)  | —       | —     | —     |
 
 ## Open Questions
 
-| Question                         | Context                        | Blocking | Priority |
-| -------------------------------- | ------------------------------ | -------- | -------- |
-| What plugin system architecture? | Scale phase planning           | Yes      | High     |
-| How to handle custom templates?  | User-defined templates feature | Yes      | High     |
+| Question                                        | Context                    | Priority |
+| ----------------------------------------------- | -------------------------- | -------- |
+| Canvas 2D vs WebGL for 100k+ commit graphs?     | Spike B will validate      | High     |
+| git2 Arc<Mutex<>> vs open-per-call pattern?      | Spike C will validate      | High     |
+| Bundle git binary or rely on system git?         | Spike C will validate      | Medium   |
 
 ## Context Notes
 
 ### Technical
 
-- Node.js runtime required (>= 20.19.0)
-- TypeScript strict mode enforced
-- Build uses tsdown + rsync to bundle .opencode/ template
-- oxlint for linting (fast, modern)
-
-### Product
-
-- Target: solo developers and teams
-- Key differentiator: validated, ready-to-use templates
-- Integration with beads_rust for task tracking
+- Tauri dev server on port 1420 (strictPort, HMR)
+- SvelteKit: adapter-static, ssr=false, prerender=true
+- Rust: vendored-libgit2 (no system dep needed)
+- Release profile: strip + lto + codegen-units=1 + panic=abort
 
 ### Process
 
-- Run `npm run lint:fix` before commits
-- Validate with `npm run typecheck`
-- Never modify dist/ directly
+- Git remote: https://github.com/montossc/mongit.git
+- Main branch: `main`
+- Ask before committing/pushing
 
 ## Next Actions
 
-1. [ ] Define plugin system architecture
-2. [ ] Design custom template API
-3. [ ] Create Scale phase implementation plan
-4. [ ] Identify Scale phase beads
+1. [ ] Execute Spike B: Canvas 2D commit graph renderer
+2. [ ] Execute Spike C: git2 hybrid engine
+3. [ ] Execute Spike D: CodeMirror 6 diff + FSEvents
+4. [ ] Decompose MVP into vertical slices after spikes complete
 
 ## Session Handoff
 
-**Last Session:** 2026-02-12
-**Next Session Priority:** Define plugin system architecture
+**Last Session:** 2026-03-14
+**Next Session Priority:** Execute remaining technical spikes (B, C, D)
 **Known Issues:** None currently blocking
-**Context Links:**
-
-- AGENTS.md - Project rules
-- .opencode/skill/ - Available skills
-- .opencode/command/ - Available commands
 
 ---
 
 _Update this file at the end of each significant session or when state changes._
-_This file is the "you are here" marker for the project._

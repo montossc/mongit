@@ -1,91 +1,94 @@
 ---
 purpose: Project vision, success criteria, and core principles
-updated: 2026-02-12
+updated: 2026-03-14
 ---
 
-# OpenCodeKit
+# mongit
 
 ## Vision
 
-A project scaffolding tool that generates OpenCode-ready project templates.
+A standalone, free macOS Git client targeting solo power developers. mongit ports JetBrains' best VCS ideas (4-pane log, line-level staging, 3-pane merge, blame-as-navigation) into a lightweight Tauri 2.0 desktop app — filling the empty "deep features + native performance" quadrant that no current client occupies.
 
-OpenCodeKit (`ock`) enables developers to bootstrap AI-assisted development environments with all essential configurations, skills, commands, and integrations pre-configured and validated.
+## Product Thesis
+
+Solo power developers want a Git client that is simultaneously deep and fast, but every existing option forces a tradeoff:
+
+| Client         | Problem                                   |
+| -------------- | ----------------------------------------- |
+| GitHub Desktop | Too simple for professionals              |
+| GitKraken      | Electron-slow, subscription fatigue       |
+| Tower          | Paid subscription, limited depth          |
+| Fork           | Good but limited depth                    |
+| Sublime Merge  | Fast but no team features, limited staging |
+| JetBrains VCS  | Best UX, but locked inside a JVM IDE      |
+
+**Our answer:** JetBrains-grade VCS experience in a standalone, free, native-speed macOS app.
 
 ## Success Criteria
 
-- [ ] Users can `ock init` and get a working OpenCode project in under 60 seconds
-- [ ] Generated projects include all essential files (AGENTS.md, skills, commands, memory)
-- [ ] 100% of generated templates pass validation (typecheck, lint)
-- [ ] Templates are customizable through CLI prompts or config
-- [ ] Integration with beads for task tracking works out-of-the-box
+- [ ] Users can open a local repo and view commit graph with 10k+ commits at 60fps
+- [ ] Line-level and hunk-level staging works for partial commits
+- [ ] Commit, amend, push operations work with hooks and signing
+- [ ] Merge conflicts resolvable in 3-pane editor
+- [ ] All operations keyboard-accessible with command palette (CMD+K)
+- [ ] Binary size < 25 MB, RAM baseline < 150 MB, startup < 2 seconds
+- [ ] Dark/light theme following system
 
 ## Target Users
 
 ### Primary
 
-- **Solo developers** setting up AI-assisted workflows for personal projects
-- **Teams** standardizing their OpenCode configuration across multiple projects
+- **Solo power developers** who live in the terminal but want visual git operations
+- Git experts who find GitHub Desktop too shallow and GitKraken too bloated
 
 ### User Needs
 
-- Quick setup without manual configuration
-- Consistent, validated project structures
-- Customizable templates for different use cases
-- Integrated task tracking from day one
+- Visual commit graph that handles real-world repos (10k+ commits, 50+ branches)
+- Line-level staging without `git add -p` friction
+- Fast, native-feeling UI without Electron overhead
+- Keyboard-first workflow with progressive disclosure
 
 ## Core Principles
 
-1. **Convention over configuration** - Sensible defaults, minimal setup required
-2. **Minimal but complete** - Include only essential files, no bloat
-3. **Extensible** - Easy to add custom skills, commands, and templates
-4. **Validated by default** - All generated projects pass typecheck and lint
-5. **Git-backed** - All state and tracking integrated with git workflow
-
-## Tech Stack
-
-- **Runtime:** Node.js >= 20.19.0
-- **Language:** TypeScript (ESNext, strict mode)
-- **Build:** tsdown + rsync for template bundling
-- **CLI Framework:** cac
-- **UI Prompts:** @clack/prompts
-- **Validation:** zod
-- **Task Tracking:** beads_rust (br)
-
-## Current Phase
-
-**Scale** - Core complete, adding advanced features.
-
-See [roadmap.md](./roadmap.md) for phase details and [state.md](./state.md) for current position.
+1. **Ambient status** — VCS state is always visible, never hidden behind a panel
+2. **Operation preview** — Show what will happen before every destructive action
+3. **Undo everything** — Every mutation is reversible with one action
+4. **Keyboard-first** — Every action reachable via shortcut or command palette
+5. **Progressive disclosure** — Clean surface for beginners; depth for experts
+6. **Premium calm** — Sharp typography, generous spacing, no visual noise
 
 ## Architecture
 
 ```
-src/
-├── index.ts          # CLI entry point
-├── commands/         # CLI commands (init, etc.)
-├── utils/            # Shared utilities
-└── validation/       # Validation scripts
-
-dist/
-├── index.js          # Built CLI
-└── template/         # Bundled .opencode/ template
-
-.opencode/
-├── agent/            # Agent definitions
-├── command/          # OpenCode commands
-├── skill/            # Reusable skills
-├── tool/             # Custom tools
-└── memory/           # Project memory
+mongit/
+├── src/                    # SvelteKit frontend
+│   ├── app.css             # Design tokens + global styles
+│   ├── routes/             # SvelteKit pages
+│   └── lib/                # Shared components, stores, utils
+├── src-tauri/              # Rust backend
+│   ├── Cargo.toml          # Dependencies (git2, notify, tauri)
+│   ├── tauri.conf.json     # Window, CSP, plugins
+│   └── src/
+│       ├── main.rs         # Entry point
+│       ├── lib.rs          # Tauri builder + plugin setup
+│       └── commands.rs     # IPC command handlers
+├── docs/
+│   ├── research/           # Technical research (8 docs)
+│   ├── plans/              # Product plan, spike plans
+│   └── handoffs/           # Session handoffs
+└── .opencode/              # AI development context
 ```
 
 ## Key Files
 
-| File          | Purpose                     |
-| ------------- | --------------------------- |
-| AGENTS.md     | Project rules for AI agents |
-| package.json  | Dependencies and scripts    |
-| build.ts      | Build configuration         |
-| tsconfig.json | TypeScript configuration    |
+| File                          | Purpose                                |
+| ----------------------------- | -------------------------------------- |
+| `src-tauri/tauri.conf.json`   | App config, window, CSP, plugins       |
+| `src-tauri/Cargo.toml`        | Rust dependencies                      |
+| `svelte.config.js`            | SvelteKit config (adapter-static)      |
+| `vite.config.ts`              | Vite + Tauri dev server                |
+| `docs/plans/`                 | Product plan + spike plans             |
+| `docs/research/`              | 8 research documents                   |
 
 ---
 
