@@ -1,0 +1,73 @@
+{
+	"$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
+	"enabled": true,
+	"debug": false,
+	// "minimal" shows prune activity without noise; "detailed" shows token counts
+	"pruneNotification": "detailed",
+	// "chat" (in-conversation) or "toast" (system notification)
+	"pruneNotificationType": "toast",
+	// Commands: /dcp context, /dcp stats, /dcp sweep, /dcp decompress, /dcp recompress
+	"commands": {
+		"enabled": true,
+		// Protect these from /dcp sweep
+		"protectedTools": ["observation", "memory-update", "memory-search"]
+	},
+	"turnProtection": {
+		"enabled": true,
+		"turns": 4
+	},
+	// Protected file patterns - never auto-prune reads of these files
+	"protectedFilePatterns": [
+		"**/.env*",
+		"**/AGENTS.md",
+		"**/.opencode/**",
+		"**/.beads/**",
+		"**/package.json",
+		"**/tsconfig.json",
+		"**/biome.json"
+	],
+	"compress": {
+		// v2.2.x beta: compress is the primary context management tool
+		"permission": "allow",
+		"showCompression": false,
+		"maxContextLimit": "80%",
+		"minContextLimit": 30000,
+		"flatSchema": false,
+		"protectUserMessages": true,
+		"protectedTools": [
+			"write",
+			"edit",
+			"memory-*",
+			"observation",
+			"skill",
+			"skill_mcp",
+			"task",
+			"batch",
+			"todowrite",
+			"todoread",
+			"tilth_*"
+		]
+	},
+	// v2.2.5-beta0: experimental subagent support
+	"experimental": {
+		"allowSubAgents": true
+	},
+	// Auto strategies - TOP LEVEL, not under tools
+	"strategies": {
+		// Dedup = zero LLM cost, high impact - always enable
+		"deduplication": {
+			"enabled": true,
+			"protectedTools": []
+		},
+		// Supersede writes = zero cost, removes redundant write inputs after read
+		"supersedeWrites": {
+			"enabled": true
+		},
+		// Purge error inputs after N turns
+		"purgeErrors": {
+			"enabled": true,
+			"turns": 4,
+			"protectedTools": []
+		}
+	}
+}

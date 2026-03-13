@@ -1,0 +1,58 @@
+{
+	"$schema": "https://raw.githubusercontent.com/nicoverbruggen/tauri-v2-schema/main/tauri.schema.json",
+	"productName": "mongit",
+	"version": "0.1.0",
+	"identifier": "com.mongit.app",
+	"build": {
+		"beforeDevCommand": "pnpm dev",
+		"devUrl": "http://localhost:1420",
+		"beforeBuildCommand": "pnpm build",
+		"frontendDist": "../build"
+	},
+	"app": {
+		"withGlobalTauri": false,
+		"windows": [
+			{
+				"title": "mongit",
+				"width": 1200,
+				"height": 800,
+				"minWidth": 900,
+				"minHeight": 600,
+				"resizable": true,
+				"fullscreen": false,
+				"decorations": true,
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true
+			}
+		],
+		"security": {
+			"csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost; connect-src ipc: http://ipc.localhost"
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": "all",
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.icns",
+			"icons/icon.ico"
+		],
+		"macOS": {
+			"minimumSystemVersion": "10.15"
+		}
+	},
+	"plugins": {
+		"shell": {
+			"open": true,
+			"scope": [
+				{
+					"name": "git",
+					"cmd": "git",
+					"args": true
+				}
+			]
+		}
+	}
+}
