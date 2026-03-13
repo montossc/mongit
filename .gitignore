@@ -39,3 +39,4 @@ src-tauri/target/
 
 # Beads runtime
 .beads/beads.db
+__pycache__/
