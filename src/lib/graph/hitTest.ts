@@ -61,16 +61,14 @@ export function hitTest(
 
 	if (node.refs.length > 0) {
 		const refZoneStart = graphEndX;
-		const refZoneEnd = Math.max(
-			textStartX,
-			textStartX + estimateRefZoneWidth(node),
-		);
+		let cursorX = refZoneStart;
 
-		if (canvasX >= refZoneStart && canvasX <= refZoneEnd) {
-			const firstRef = node.refs[0];
-			if (firstRef) {
-				return { type: "ref", node, ref: firstRef };
+		for (const ref of node.refs) {
+			const badgeWidth = estimateRefBadgeWidth(ref);
+			if (canvasX >= cursorX && canvasX <= cursorX + badgeWidth) {
+				return { type: "ref", node, ref };
 			}
+			cursorX += badgeWidth + REF_GAP;
 		}
 	}
 

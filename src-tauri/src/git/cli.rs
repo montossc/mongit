@@ -8,12 +8,12 @@ pub struct GitCli;
 
 impl GitCli {
     pub fn create_branch(repo_path: &str, branch_name: &str) -> Result<(), GitError> {
-        Self::run_git(repo_path, &["branch", branch_name])?;
+        Self::run_git(repo_path, &["branch", "--", branch_name])?;
         Ok(())
     }
 
     pub fn switch_branch(repo_path: &str, branch_name: &str) -> Result<(), GitError> {
-        Self::run_git(repo_path, &["switch", branch_name])?;
+        Self::run_git(repo_path, &["switch", "--", branch_name])?;
         Ok(())
     }
 

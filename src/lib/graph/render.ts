@@ -217,7 +217,10 @@ function drawEdges(
   const groups = new Map<string, { color: string; isMerge: boolean; segments: GraphSegment[] }>();
 
   for (const segment of segments) {
-    if (!isRowVisible(segment.fromRow, visible) && !isRowVisible(segment.toRow, visible)) {
+    // Include edges that cross through the visible range, not just endpoints
+    const minRow = Math.min(segment.fromRow, segment.toRow);
+    const maxRow = Math.max(segment.fromRow, segment.toRow);
+    if (maxRow < visible.first || minRow > visible.last) {
       continue;
     }
 
@@ -507,7 +510,7 @@ function withAlpha(color: string, alpha: number): string {
   }
 
   if (color.startsWith('rgba(')) {
-    return color.replace(/rgba\(([^)]+),\s*[^,]+\)$/u, `rgba($1, ${normalizedAlpha})`);
+    return color.replace(/rgba\((.+),\s*[\d.]+\)$/u, `rgba($1, ${normalizedAlpha})`);
   }
 
   return color;

@@ -12,13 +12,35 @@
   let { node, x, y, onClose, onAction }: Props = $props();
 
   let menuEl = $state<HTMLDivElement | null>(null);
+  let focusedIndex = $state(0);
+
+  const items = [
+    { action: 'copy-hash', label: 'Copy Commit Hash' },
+    { action: 'copy-message', label: 'Copy Commit Message' },
+    { action: 'show-terminal', label: 'Show in Terminal' },
+  ] as const;
 
   function handleAction(action: string): void {
     onAction(action, node);
     onClose();
   }
 
+  function focusItem(index: number): void {
+    if (!menuEl) return;
+    const buttons = menuEl.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]');
+    const target = buttons[index];
+    if (target) {
+      target.focus();
+      focusedIndex = index;
+    }
+  }
+
   $effect(() => {
+    // Focus first item on mount
+    if (menuEl) {
+      requestAnimationFrame(() => focusItem(0));
+    }
+
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
@@ -26,21 +48,40 @@
       onClose();
     };
 
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
     window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeydown);
 
     return () => {
       window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeydown);
     };
   });
+
+  function handleMenuKeydown(event: KeyboardEvent): void {
+    const buttonCount = items.length;
+
+    switch (event.key) {
+      case 'Escape':
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        break;
+      case 'ArrowDown':
+        event.preventDefault();
+        focusItem((focusedIndex + 1) % buttonCount);
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        focusItem((focusedIndex - 1 + buttonCount) % buttonCount);
+        break;
+      case 'Home':
+        event.preventDefault();
+        focusItem(0);
+        break;
+      case 'End':
+        event.preventDefault();
+        focusItem(buttonCount - 1);
+        break;
+    }
+  }
 </script>
 
 <div
@@ -49,17 +90,17 @@
   style:left="{x}px"
   style:top="{y}px"
   role="menu"
-  tabindex="-1"
+  onkeydown={handleMenuKeydown}
 >
-  <button type="button" class="menu-item" onclick={() => handleAction('copy-hash')}>Copy Commit Hash</button>
-  <button type="button" class="menu-item" onclick={() => handleAction('copy-message')}>Copy Commit Message</button>
-  <button type="button" class="menu-item" onclick={() => handleAction('browse')}>Browse Files at Commit</button>
-  <button type="button" class="menu-item" onclick={() => handleAction('create-branch')}>Create Branch Here...</button>
-  <button type="button" class="menu-item" onclick={() => handleAction('cherry-pick')}>Cherry-pick</button>
-  <div class="menu-separator"></div>
-  <button type="button" class="menu-item danger" onclick={() => handleAction('reset')}>
-    Reset Current Branch to Here...
-  </button>
+  {#each items as item, idx}
+    <button
+      type="button"
+      class="menu-item"
+      role="menuitem"
+      tabindex={idx === focusedIndex ? 0 : -1}
+      onclick={() => handleAction(item.action)}
+    >{item.label}</button>
+  {/each}
 </div>
 
 <style>

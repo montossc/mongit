@@ -121,9 +121,18 @@
 			case 'copy-message':
 				navigator.clipboard.writeText(node.data.message);
 				break;
-			default:
-				console.log(`Context action: ${action} on ${node.data.id.slice(0, 7)}`);
+			case 'show-terminal':
+				console.log(`Show in terminal: ${node.data.id.slice(0, 7)}`);
+				break;
 		}
+	}
+
+	function handleScrollChange(newScrollTop: number) {
+		scrollTop = newScrollTop;
+	}
+
+	function handleHeightChange(newHeight: number) {
+		canvasHeight = newHeight;
 	}
 </script>
 
@@ -186,10 +195,12 @@
 	<div class="content">
 		{#if layout}
 			<div class="graph-panel">
-				<GraphCanvas
+			<GraphCanvas
 					{layout}
 					onSelectCommit={handleSelectCommit}
 					onContextAction={handleContextAction}
+					onScrollChange={handleScrollChange}
+					onHeightChange={handleHeightChange}
 				/>
 				<FpsOverlay {layout} {scrollTop} {canvasHeight} visible={showFps} />
 			</div>

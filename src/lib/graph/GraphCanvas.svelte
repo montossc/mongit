@@ -14,9 +14,11 @@
     layout: LayoutResult | null;
     onSelectCommit?: (id: string) => void;
     onContextAction?: (action: string, node: CommitNode) => void;
+    onScrollChange?: (scrollTop: number) => void;
+    onHeightChange?: (height: number) => void;
   }
 
-  let { layout, onSelectCommit, onContextAction }: Props = $props();
+  let { layout, onSelectCommit, onContextAction, onScrollChange, onHeightChange }: Props = $props();
 
   let container = $state<HTMLDivElement | null>(null);
   let canvas = $state<HTMLCanvasElement | null>(null);
@@ -82,28 +84,14 @@
   function handleScroll(): void {
     if (!container) return;
     scrollTop = container.scrollTop;
+    onScrollChange?.(scrollTop);
     queueRender();
   }
 
-  function rowFromClientY(clientY: number): number {
-    if (!canvas) return -1;
-    const rect = canvas.getBoundingClientRect();
-    const y = clientY - rect.top;
-    const absoluteY = y + scrollTop;
-    return Math.floor(absoluteY / ROW_HEIGHT);
-  }
-
-  function nodeAtClientY(clientY: number): string | null {
-    const activeLayout = layout;
-    if (!activeLayout) return null;
-
-    const row = rowFromClientY(clientY);
-    if (row < 0 || row >= activeLayout.nodes.length) return null;
-
-    const node = activeLayout.nodes[row];
-    if (!node) return null;
-
-    return node.data.id;
+  function scrollToRow(row: number): void {
+    if (!container) return;
+    const targetY = row * ROW_HEIGHT;
+    container.scrollTop = targetY;
   }
 
   function nodeByRow(row: number): CommitNode | null {
@@ -215,6 +203,47 @@
       return;
     }
 
+    if (event.key === 'Home') {
+      event.preventDefault();
+      const first = nodeByRow(0);
+      if (first) {
+        applySelection(first);
+        scrollToRow(0);
+      }
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      const lastRow = layout.nodes.length - 1;
+      const last = nodeByRow(lastRow);
+      if (last) {
+        applySelection(last);
+        scrollToRow(lastRow);
+      }
+      return;
+    }
+
+    if (event.key === 'PageDown') {
+      event.preventDefault();
+      const rowsPerPage = Math.max(1, Math.floor(height / ROW_HEIGHT));
+      const selectedNode = nodeById(selectedId);
+      const targetRow = Math.min(layout.nodes.length - 1, (selectedNode?.row ?? 0) + rowsPerPage);
+      const target = nodeByRow(targetRow);
+      if (target) applySelection(target);
+      return;
+    }
+
+    if (event.key === 'PageUp') {
+      event.preventDefault();
+      const rowsPerPage = Math.max(1, Math.floor(height / ROW_HEIGHT));
+      const selectedNode = nodeById(selectedId);
+      const targetRow = Math.max(0, (selectedNode?.row ?? 0) - rowsPerPage);
+      const target = nodeByRow(targetRow);
+      if (target) applySelection(target);
+      return;
+    }
+
     if (event.key === 'Enter') {
       event.preventDefault();
       if (selectedId) {
@@ -223,14 +252,14 @@
     }
   }
 
-  // Setup canvas context and resize observer once when elements are available
+  // Setup canvas context, resize observer, and theme media query listener
   $effect(() => {
     if (!container || !canvas) return;
 
     ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
-    // Resolve theme once from computed styles — untrack to avoid read/write loop
+    // Resolve theme from computed styles — untrack to avoid read/write loop
     const currentTheme = untrack(() => theme);
     if (!currentTheme) {
       theme = resolveTheme(container);
@@ -244,6 +273,7 @@
       const box = entry.contentRect;
       width = Math.floor(box.width);
       height = Math.floor(box.height);
+      onHeightChange?.(height);
       setupCanvasSize();
       queueRender();
     });
@@ -257,8 +287,18 @@
 
     window.addEventListener('resize', onWindowResize);
 
+    // Re-resolve theme when system color scheme changes (dark/light toggle)
+    const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const onThemeChange = () => {
+      if (container) {
+        theme = resolveTheme(container);
+      }
+    };
+    colorSchemeQuery.addEventListener('change', onThemeChange);
+
     return () => {
       window.removeEventListener('resize', onWindowResize);
+      colorSchemeQuery.removeEventListener('change', onThemeChange);
       resizeObserver?.disconnect();
       resizeObserver = null;
 
@@ -281,8 +321,8 @@
 <div
   class="graph-container"
   bind:this={container}
-  role="listbox"
-  aria-label="Commit graph"
+  role="application"
+  aria-label="Commit graph — use arrow keys to navigate, Enter to select"
   tabindex="0"
   onscroll={handleScroll}
   onkeydown={handleKeydown}

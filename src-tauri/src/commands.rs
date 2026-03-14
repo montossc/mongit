@@ -38,10 +38,12 @@ pub async fn get_repo_status(path: String) -> Result<RepoStatus, String> {
 }
 
 /// Get commit log for graph rendering (all branches).
+/// max_count is capped at 50,000 to prevent unbounded resource usage.
 #[tauri::command]
 pub async fn get_commit_log(path: String, max_count: usize) -> Result<Vec<CommitInfo>, String> {
+    let capped = max_count.min(50_000);
     tokio::task::spawn_blocking(move || {
-        Git2Repository::log_all_branches(&path, max_count).map_err(|e| e.to_string())
+        Git2Repository::log_all_branches(&path, capped).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
