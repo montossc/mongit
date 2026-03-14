@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::git::Git2Repository;
+use crate::git::repository::{CommitInfo, RefInfo};
 
 /// Basic greet command to test IPC
 #[tauri::command]
@@ -34,4 +35,22 @@ pub async fn get_repo_status(path: String) -> Result<RepoStatus, String> {
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get commit log for graph rendering (all branches).
+#[tauri::command]
+pub async fn get_commit_log(path: String, max_count: usize) -> Result<Vec<CommitInfo>, String> {
+    tokio::task::spawn_blocking(move || {
+        Git2Repository::log_all_branches(&path, max_count).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get all refs (branches, tags, HEAD) for graph labels.
+#[tauri::command]
+pub async fn get_refs(path: String) -> Result<Vec<RefInfo>, String> {
+    tokio::task::spawn_blocking(move || Git2Repository::refs(&path).map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
 }

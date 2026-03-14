@@ -8,6 +8,8 @@ pub use cli::GitCli;
 pub use error::GitError;
 #[allow(unused_imports)]
 pub use repository::Git2Repository;
+#[allow(unused_imports)]
+pub use repository::{RefInfo, RefType};
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,12 +151,39 @@ mod tests {
     }
 
     #[test]
+    fn test_log_all_branches() {
+        let (dir, _repo) = create_test_repo();
+        let path = dir.path().to_str().expect("path should be utf-8");
+
+        GitCli::create_branch(path, "feature-1").unwrap();
+
+        let commits = Git2Repository::log_all_branches(path, 100).expect("log_all should work");
+        assert!(!commits.is_empty());
+        assert_eq!(commits[0].message, "Initial commit");
+    }
+
+    #[test]
     fn test_branches_lists_default() {
         let (dir, _repo) = create_test_repo();
         let path = dir.path().to_str().expect("path should be utf-8");
 
         let branches = Git2Repository::branches(path).expect("branches should work");
         assert!(!branches.is_empty());
+    }
+
+    #[test]
+    fn test_refs() {
+        let (dir, _repo) = create_test_repo();
+        let path = dir.path().to_str().expect("path should be utf-8");
+
+        let refs = Git2Repository::refs(path).expect("refs should work");
+        assert!(refs.len() >= 2);
+        assert!(refs
+            .iter()
+            .any(|r| matches!(r.ref_type, repository::RefType::Head)));
+        assert!(refs
+            .iter()
+            .any(|r| matches!(r.ref_type, repository::RefType::LocalBranch)));
     }
 
     #[test]

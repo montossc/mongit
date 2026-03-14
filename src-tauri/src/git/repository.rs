@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Public API; consumers (bd-15p, bd-2n2) not yet wired
-
 use git2::{BranchType, Delta, DiffOptions, ErrorCode, Sort, Status, StatusOptions};
 use serde::Serialize;
 
@@ -59,6 +57,21 @@ pub struct BranchInfo {
     pub name: String,
     pub is_head: bool,
     pub target: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RefInfo {
+    pub name: String,
+    pub ref_type: RefType,
+    pub commit_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum RefType {
+    LocalBranch,
+    RemoteBranch,
+    Tag,
+    Head,
 }
 
 pub struct Git2Repository;
@@ -211,6 +224,40 @@ impl Git2Repository {
         Ok(commits)
     }
 
+    pub fn log_all_branches(path: &str, max_count: usize) -> Result<Vec<CommitInfo>, GitError> {
+        let repo = git2::Repository::open(path)?;
+        let mut revwalk = repo.revwalk()?;
+        revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+
+        // Push all local branch heads.
+        revwalk.push_glob("refs/heads/*")?;
+
+        // Also include remote branch heads when present.
+        let _ = revwalk.push_glob("refs/remotes/*");
+
+        let mut commits = Vec::new();
+
+        for oid_result in revwalk.take(max_count) {
+            let oid = oid_result?;
+            let commit = repo.find_commit(oid)?;
+            let author = commit.author();
+
+            commits.push(CommitInfo {
+                id: commit.id().to_string(),
+                message: commit.message().unwrap_or_default().to_string(),
+                author_name: author.name().unwrap_or_default().to_string(),
+                author_email: author.email().unwrap_or_default().to_string(),
+                time: commit.time().seconds(),
+                parent_ids: commit
+                    .parent_ids()
+                    .map(|parent| parent.to_string())
+                    .collect(),
+            });
+        }
+
+        Ok(commits)
+    }
+
     pub fn branches(path: &str) -> Result<Vec<BranchInfo>, GitError> {
         let repo = git2::Repository::open(path)?;
         let mut out = Vec::new();
@@ -230,6 +277,62 @@ impl Git2Repository {
                 is_head,
                 target,
             });
+        }
+
+        Ok(out)
+    }
+
+    pub fn refs(path: &str) -> Result<Vec<RefInfo>, GitError> {
+        let repo = git2::Repository::open(path)?;
+        let mut out = Vec::new();
+
+        if let Ok(head) = repo.head() {
+            if let Some(target) = head.target() {
+                out.push(RefInfo {
+                    name: "HEAD".to_string(),
+                    ref_type: RefType::Head,
+                    commit_id: target.to_string(),
+                });
+            }
+        }
+
+        for branch_result in repo.branches(Some(BranchType::Local))? {
+            let (branch, _) = branch_result?;
+            let name = branch.name()?.unwrap_or_default().to_string();
+
+            if let Some(target) = branch.get().target() {
+                out.push(RefInfo {
+                    name,
+                    ref_type: RefType::LocalBranch,
+                    commit_id: target.to_string(),
+                });
+            }
+        }
+
+        for branch_result in repo.branches(Some(BranchType::Remote))? {
+            let (branch, _) = branch_result?;
+            let name = branch.name()?.unwrap_or_default().to_string();
+
+            if let Some(target) = branch.get().target() {
+                out.push(RefInfo {
+                    name,
+                    ref_type: RefType::RemoteBranch,
+                    commit_id: target.to_string(),
+                });
+            }
+        }
+
+        for ref_result in repo.references_glob("refs/tags/*")? {
+            let reference = ref_result?;
+            let name = reference.shorthand().unwrap_or_default().to_string();
+
+            if let Ok(commit) = reference.peel_to_commit() {
+                out.push(RefInfo {
+                    name,
+                    ref_type: RefType::Tag,
+                    commit_id: commit.id().to_string(),
+                });
+            }
         }
 
         Ok(out)
