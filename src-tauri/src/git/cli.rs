@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Public API; consumers not yet wired
+
 use std::process::Command;
 
 use super::GitError;

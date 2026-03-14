@@ -1,11 +1,13 @@
+// Public API for downstream beads (bd-15p, bd-2n2) — items not yet consumed locally.
 pub mod cli;
 pub mod error;
 pub mod repository;
 
+#[allow(unused_imports)]
 pub use cli::GitCli;
 pub use error::GitError;
+#[allow(unused_imports)]
 pub use repository::Git2Repository;
-
 #[cfg(test)]
 mod tests {
     use super::*;

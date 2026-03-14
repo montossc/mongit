@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Public API; consumers (bd-15p, bd-2n2) not yet wired
+
 use git2::{BranchType, Delta, DiffOptions, ErrorCode, Sort, Status, StatusOptions};
 use serde::Serialize;
 
