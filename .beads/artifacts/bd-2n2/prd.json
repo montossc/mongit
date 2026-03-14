@@ -1,0 +1,180 @@
+{
+	"beadId": "bd-2n2",
+	"prdName": "codemirror6-diff-merge-file-watching",
+	"tasks": [
+		{
+			"id": "setup-1",
+			"category": "setup",
+			"description": "Install CM6 dependencies, create Svelte action wrapper, validate CSP in WKWebView",
+			"steps": [
+				"pnpm check passes with 0 errors after adding @codemirror/* packages",
+				"Minimal EditorView renders text with syntax highlighting in Tauri dev mode",
+				"Safari Web Inspector Console shows no CSP violation errors"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"package.json",
+					"src/lib/actions/codemirror.ts",
+					"src/lib/utils/codemirror-config.ts",
+					"src/lib/utils/codemirror-theme.ts"
+				]
+			}
+		},
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"description": "Build side-by-side diff viewer using @codemirror/merge MergeView with collapsed unchanged regions and hunk accept/reject gutter buttons",
+			"steps": [
+				"DiffViewer.svelte renders hardcoded original/modified text with highlighted changes",
+				"Unchanged regions > 8 lines are collapsed with expandable widget",
+				"Hunk accept/reject buttons appear in gutter and fire acceptChunk()/rejectChunk()",
+				"pnpm check passes with 0 errors"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["setup-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/components/DiffViewer.svelte"]
+			}
+		},
+		{
+			"id": "frontend-2",
+			"category": "frontend",
+			"description": "Build 3-pane merge editor: ours (left, read-only), result (center, editable), theirs (right, read-only) with Accept Ours/Theirs per-chunk buttons",
+			"steps": [
+				"Three panes render with base/ours/theirs content",
+				"Center pane is editable; left and right are read-only",
+				"Accept Ours and Accept Theirs buttons update center editor content",
+				"All three editor instances are destroyed on unmount",
+				"pnpm check passes with 0 errors"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["setup-1"],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src/lib/components/MergeEditor.svelte"]
+			}
+		},
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"description": "Implement Rust file watcher module using notify + notify-debouncer-full with coarse repo-changed events and path filtering",
+			"steps": [
+				"cargo check passes in src-tauri/",
+				"watch_repo command starts FSEvents watcher on provided path",
+				"File modifications emit repo-changed event within 500ms",
+				"Changes in .git/objects, node_modules/, target/ do NOT emit events",
+				"Changes to .git/index, .git/HEAD DO emit events",
+				"Calling watch_repo with a new path drops the old watcher"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src-tauri/src/watcher.rs",
+					"src-tauri/src/lib.rs",
+					"src-tauri/src/commands.rs"
+				]
+			}
+		},
+		{
+			"id": "frontend-3",
+			"category": "frontend",
+			"description": "Build watcher monitor frontend with start/stop controls and event log showing timestamps and latency",
+			"steps": [
+				"Start watching -> modify file externally -> event appears in log",
+				"Event log shows timestamp and latency (ms from file change to frontend receipt)",
+				"Stop watching -> modify file -> no new events",
+				"pnpm check passes with 0 errors"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["backend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/components/WatcherMonitor.svelte",
+					"src/lib/stores/watcher.svelte.ts"
+				]
+			}
+		},
+		{
+			"id": "frontend-4",
+			"category": "frontend",
+			"description": "Build benchmark panel with diff render timing (1k/10k/50k lines), merge render timing, and watcher latency measurement",
+			"steps": [
+				"Run Diff Benchmark generates timing results for 1k, 10k, 50k line files",
+				"10k-line diff result < 200ms",
+				"50k-line diff result < 1000ms",
+				"Watcher latency measurement shows < 500ms",
+				"pnpm check passes with 0 errors"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-1", "frontend-2", "frontend-3"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/components/BenchmarkPanel.svelte"]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Assemble tabbed /spike-d dashboard wiring all 4 subsystems (Diff, Merge, Watcher, Benchmarks) with CM6 cleanup on tab switch",
+			"steps": [
+				"pnpm tauri dev -> navigate to /spike-d -> four tabs render",
+				"Each tab shows its respective component with functional interactions",
+				"Tab switching destroys previous CM6 instances (no memory leaks)",
+				"pnpm check passes with 0 errors",
+				"cargo check passes in src-tauri/",
+				"No CSP errors in Safari Web Inspector across all tabs"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-1", "frontend-2", "frontend-3", "frontend-4"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/routes/spike-d/+page.svelte"]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"IPC commands: src-tauri/src/commands.rs with #[tauri::command]",
+			"Tauri builder: src-tauri/src/lib.rs with generate_handler![]",
+			"Svelte 5 runes: $state(), $effect(), onMount()",
+			"Design tokens: src/app.css has diff/merge color tokens",
+			"Static adapter: ssr=false, prerender=true"
+		],
+		"keyFiles": [
+			"src-tauri/tauri.conf.json",
+			"src-tauri/Cargo.toml",
+			"src/app.css",
+			"src-tauri/src/lib.rs",
+			"src-tauri/src/commands.rs"
+		],
+		"nonGoals": [
+			"Line-level staging (MVP work)",
+			"Unified diff mode",
+			"Syntax highlighting for all languages (2-3 only)",
+			"Production-quality theming",
+			"Real git2 diff integration (hardcoded sample data)",
+			"Multi-repo file watching"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": [],
+		"parallel": true,
+		"conflicts_with": ["bd-15p"],
+		"blocks": [],
+		"estimated_hours": 16
+	}
+}

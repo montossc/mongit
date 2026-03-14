@@ -1,0 +1,25 @@
+# Progress Log
+
+Bead: bd-2n2
+Started: 2026-03-14
+
+## Codebase Patterns
+
+- IPC commands in src-tauri/src/commands.rs (#[tauri::command], spawn_blocking for git2)
+- Tauri builder in src-tauri/src/lib.rs (generate_handler![], plugin registration)
+- Svelte 5 runes ($state, $effect, $derived) throughout frontend
+- Design tokens in src/app.css include diff/merge colors
+- notify + notify-debouncer-full already in Cargo.toml
+- CSP: style-src 'self' 'unsafe-inline' already set (required for CM6 style-mod)
+
+## Execution Waves
+
+Wave 1: setup-1 (CM6 install + CSP) ∥ backend-1 (Rust watcher)
+Wave 2: frontend-1 (diff viewer) ∥ frontend-2 (merge editor)
+Wave 3: frontend-3 (watcher monitor) — depends on backend-1
+Wave 4: frontend-4 (benchmarks) — depends on frontend-1,2,3
+Wave 5: integration-1 (tabbed dashboard) — depends on all
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
