@@ -16,13 +16,8 @@
 
 	let activeTab = $state<TabId>('diff');
 
-	// Track which tabs have been visited so we can lazy-mount
-	// but keep alive for the session (avoids re-creating CM6 instances)
-	let mounted = $state<Set<TabId>>(new Set(['diff']));
-
 	function selectTab(id: TabId) {
 		activeTab = id;
-		mounted = new Set([...mounted, id]);
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -70,26 +65,20 @@
 	</div>
 
 	<div class="tab-content">
-		{#if mounted.has('diff')}
-			<div class="tab-panel" class:visible={activeTab === 'diff'} role="tabpanel">
+		{#if activeTab === 'diff'}
+			<div class="tab-panel visible" role="tabpanel">
 				<DiffViewer />
 			</div>
-		{/if}
-
-		{#if mounted.has('merge')}
-			<div class="tab-panel" class:visible={activeTab === 'merge'} role="tabpanel">
+		{:else if activeTab === 'merge'}
+			<div class="tab-panel visible" role="tabpanel">
 				<MergeEditor />
 			</div>
-		{/if}
-
-		{#if mounted.has('watcher')}
-			<div class="tab-panel" class:visible={activeTab === 'watcher'} role="tabpanel">
+		{:else if activeTab === 'watcher'}
+			<div class="tab-panel visible" role="tabpanel">
 				<WatcherMonitor />
 			</div>
-		{/if}
-
-		{#if mounted.has('benchmarks')}
-			<div class="tab-panel" class:visible={activeTab === 'benchmarks'} role="tabpanel">
+		{:else if activeTab === 'benchmarks'}
+			<div class="tab-panel visible" role="tabpanel">
 				<BenchmarkPanel />
 			</div>
 		{/if}

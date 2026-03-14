@@ -69,12 +69,18 @@ pub async fn watch_repo(
         Duration::from_millis(300),
         None,
         move |result: DebounceEventResult| {
-            if let Ok(events) = result {
-                let should_emit = events
-                    .iter()
-                    .any(|e| e.paths.iter().any(|p| should_emit_for_path(p)));
-                if should_emit {
-                    let _ = app_clone.emit("repo-changed", ());
+            match result {
+                Ok(events) => {
+                    let should_emit = events
+                        .iter()
+                        .any(|e| e.paths.iter().any(|p| should_emit_for_path(p)));
+                    if should_emit {
+                        let _ = app_clone.emit("repo-changed", ());
+                    }
+                }
+                Err(errors) => {
+                    eprintln!("[watcher] debouncer errors: {:?}", errors);
+                    let _ = app_clone.emit("repo-watcher-error", format!("{:?}", errors));
                 }
             }
         },

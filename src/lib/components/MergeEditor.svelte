@@ -247,7 +247,7 @@ export function processConfig(config: AppConfig): string {
 	}
 
 	.merge-pane-header.theirs {
-		background-color: color-mix(in srgb, #60a5fa 10%, transparent);
+		background-color: color-mix(in srgb, var(--color-info) 10%, transparent);
 		color: var(--color-info);
 	}
 
