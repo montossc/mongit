@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { CommitNode, LayoutResult } from './types';
   import {
     ROW_HEIGHT,
@@ -222,15 +223,18 @@
     }
   }
 
+  // Setup canvas context and resize observer once when elements are available
   $effect(() => {
     if (!container || !canvas) return;
 
-    if (!theme) {
+    ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
+
+    // Resolve theme once from computed styles — untrack to avoid read/write loop
+    const currentTheme = untrack(() => theme);
+    if (!currentTheme) {
       theme = resolveTheme(container);
     }
-
-    ctx = canvas.getContext('2d', { desynchronized: true });
-    if (!ctx) return;
 
     resizeObserver?.disconnect();
     resizeObserver = new ResizeObserver((entries) => {
@@ -265,14 +269,11 @@
     };
   });
 
+  // Re-render when layout data or theme changes.
+  // scrollTop/selectedId/hoveredId are handled by their event handlers.
   $effect(() => {
     layout;
-    scrollTop;
-    selectedId;
-    hoveredId;
     theme;
-    width;
-    height;
     queueRender();
   });
 </script>
@@ -286,7 +287,6 @@
   onscroll={handleScroll}
   onkeydown={handleKeydown}
 >
-  <div class="graph-spacer" style:height="{totalHeight}px"></div>
   <canvas
     bind:this={canvas}
     class="graph-canvas"
@@ -295,6 +295,7 @@
     onclick={handleClick}
     oncontextmenu={handleContextMenu}
   ></canvas>
+  <div class="graph-spacer" style:height="{totalHeight}px"></div>
 
   {#if contextMenu}
     <ContextMenu

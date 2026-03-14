@@ -36,7 +36,7 @@
 
   const relativeDate = $derived(node ? formatRelativeTime(node.data.time * 1000) : '');
 
-  const avatarInitials = $derived(() => {
+  const avatarInitials = $derived.by(() => {
     const name = node?.data.author_name.trim() ?? '';
     if (!name) return '?';
 

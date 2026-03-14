@@ -90,7 +90,7 @@ export function renderGraph(ctx: CanvasRenderingContext2D, layout: LayoutResult,
   });
 
   drawEdges(ctx, layout.segments, visible, scrollTop, theme, dpr);
-  drawNodes(ctx, layout.nodes, visible, scrollTop, theme, selectedId);
+  drawNodes(ctx, layout, visible, scrollTop, theme, selectedId);
   drawRefLabels(ctx, layout.nodes, visible, scrollTop, theme, graphTextStartX);
   drawCommitText(ctx, layout.nodes, visible, scrollTop, theme, graphTextStartX, canvasWidth - rightPadding);
 }
@@ -266,12 +266,13 @@ function drawEdges(
 
 function drawNodes(
   ctx: CanvasRenderingContext2D,
-  nodes: CommitNode[],
+  layout: LayoutResult,
   visible: VisibleRange,
   scrollTop: number,
   theme: GraphTheme,
   selectedId: string | null
 ): void {
+  const { nodes } = layout;
   const buckets = new Map<string, CommitNode[]>();
 
   for (let row = visible.first; row <= visible.last; row++) {
@@ -302,7 +303,7 @@ function drawNodes(
   }
 
   if (selectedId) {
-    const selectedNode = nodes.find((node) => node.data.id === selectedId);
+    const selectedNode = layout.nodeMap.get(selectedId);
     if (selectedNode && isRowVisible(selectedNode.row, visible)) {
       const x = laneToX(selectedNode.lane);
       const y = rowToY(selectedNode.row, scrollTop);

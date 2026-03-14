@@ -210,3 +210,64 @@ mod tests {
             .any(|entry| entry.path.ends_with("diff_file.txt")));
     }
 }
+
+    #[test]
+    fn test_perf_log_all_branches_1k() {
+        use std::time::Instant;
+
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        let repo = git2::Repository::init(dir.path()).expect("init");
+
+        // Set up initial commit
+        let sig = repo.signature().unwrap_or_else(|_| {
+            git2::Signature::now("Test", "test@test.com").unwrap()
+        });
+        let tree_id = {
+            let mut index = repo.index().unwrap();
+            let path = dir.path().join("README.md");
+            std::fs::write(&path, "# test").unwrap();
+            index.add_path(std::path::Path::new("README.md")).unwrap();
+            index.write_tree().unwrap()
+        };
+        let tree = repo.find_tree(tree_id).unwrap();
+        let mut last_oid = repo
+            .commit(Some("HEAD"), &sig, &sig, "Initial", &tree, &[])
+            .unwrap();
+
+        // Create 1000 commits
+        let commit_count = 1000;
+        for i in 1..commit_count {
+            let path = dir.path().join("README.md");
+            std::fs::write(&path, format!("# commit {i}")).unwrap();
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new("README.md")).unwrap();
+            let new_tree_id = index.write_tree().unwrap();
+            let new_tree = repo.find_tree(new_tree_id).unwrap();
+            let parent = repo.find_commit(last_oid).unwrap();
+            last_oid = repo
+                .commit(Some("HEAD"), &sig, &sig, &format!("Commit {i}"), &new_tree, &[&parent])
+                .unwrap();
+        }
+
+        let path_str = dir.path().to_str().unwrap();
+
+        // Time the revwalk
+        let start = Instant::now();
+        let commits =
+            Git2Repository::log_all_branches(path_str, 10000).expect("log should work");
+        let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+        eprintln!(
+            "PERF: log_all_branches({} commits) = {:.1}ms ({:.1}μs/commit)",
+            commits.len(),
+            elapsed_ms,
+            elapsed_ms * 1000.0 / commits.len() as f64
+        );
+
+        assert_eq!(commits.len(), commit_count);
+        // Must complete under 500ms for 1k commits (generous bound)
+        assert!(
+            elapsed_ms < 500.0,
+            "log_all_branches too slow: {elapsed_ms:.1}ms for {commit_count} commits"
+        );
+    }

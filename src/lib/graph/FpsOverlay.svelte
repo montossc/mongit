@@ -15,7 +15,11 @@
 
   let rafId = $state<number | null>(null);
   let lastTimestamp = $state<number | null>(null);
-  let frameDurations = $state<number[]>([]);
+
+  // Ring buffer to avoid per-frame allocation
+  let frameBuffer: Float64Array = new Float64Array(FRAME_WINDOW_SIZE);
+  let frameCount = $state(0);
+  let frameWriteIdx = 0;
 
   let fps = $state(0);
   let frameTimeMs = $state(0);
@@ -31,7 +35,9 @@
 
   function resetMeasurements(): void {
     lastTimestamp = null;
-    frameDurations = [];
+    frameBuffer = new Float64Array(FRAME_WINDOW_SIZE);
+    frameCount = 0;
+    frameWriteIdx = 0;
     fps = 0;
     frameTimeMs = 0;
     minFrameTimeMs = 0;
@@ -46,7 +52,8 @@
   }
 
   function updateMetrics(): void {
-    if (frameDurations.length === 0) {
+    const len = Math.min(frameCount, FRAME_WINDOW_SIZE);
+    if (len === 0) {
       fps = 0;
       frameTimeMs = 0;
       minFrameTimeMs = 0;
@@ -58,13 +65,14 @@
     let min = Number.POSITIVE_INFINITY;
     let max = 0;
 
-    for (const value of frameDurations) {
+    for (let i = 0; i < len; i++) {
+      const value = frameBuffer[i];
       sum += value;
       if (value < min) min = value;
       if (value > max) max = value;
     }
 
-    const avg = sum / frameDurations.length;
+    const avg = sum / len;
     frameTimeMs = avg;
     fps = avg > 0 ? 1000 / avg : 0;
     minFrameTimeMs = min;
@@ -80,9 +88,9 @@
     if (lastTimestamp !== null) {
       const delta = timestamp - lastTimestamp;
       if (delta > 0) {
-        const next = [...frameDurations, delta];
-        frameDurations =
-          next.length > FRAME_WINDOW_SIZE ? next.slice(next.length - FRAME_WINDOW_SIZE) : next;
+        frameBuffer[frameWriteIdx] = delta;
+        frameWriteIdx = (frameWriteIdx + 1) % FRAME_WINDOW_SIZE;
+        frameCount++;
         updateMetrics();
       }
     }
