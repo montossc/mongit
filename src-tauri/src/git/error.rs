@@ -8,13 +8,22 @@ pub enum GitError {
     #[error("git2: {0}")]
     Git2(#[from] git2::Error),
 
-    /// Error from git CLI execution (write operations)
-    #[error("git cli: {0}")]
-    Cli(String),
+    /// Structured error from git CLI execution (write operations).
+    /// Captures the command, stderr output, and exit code for diagnostics.
+    #[error("git cli failed: `git {cmd}` (exit {exit_code:?}): {stderr}")]
+    CommandFailed {
+        cmd: String,
+        stderr: String,
+        exit_code: Option<i32>,
+    },
 
     /// Repository or ref not found
     #[error("not found: {0}")]
     NotFound(String),
+
+    /// Invalid argument passed to a git operation
+    #[error("invalid argument: {0}")]
+    InvalidArgument(String),
 
     /// Filesystem I/O error
     #[error("io: {0}")]

@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::git::Git2Repository;
+use crate::git::{Git2Repository, GitRepository};
 use crate::git::repository::{CommitInfo, RefInfo};
 
 /// Basic greet command to test IPC
@@ -23,8 +23,9 @@ pub struct RepoStatus {
 #[tauri::command]
 pub async fn get_repo_status(path: String) -> Result<RepoStatus, String> {
     tokio::task::spawn_blocking(move || {
-        let status = Git2Repository::status(&path)?;
-        let branch = Git2Repository::current_branch(&path)?;
+        let repo = Git2Repository::open(&path);
+        let status = repo.status()?;
+        let branch = repo.current_branch()?;
 
         Ok(RepoStatus {
             is_valid: true,
@@ -43,7 +44,8 @@ pub async fn get_repo_status(path: String) -> Result<RepoStatus, String> {
 pub async fn get_commit_log(path: String, max_count: usize) -> Result<Vec<CommitInfo>, String> {
     let capped = max_count.min(50_000);
     tokio::task::spawn_blocking(move || {
-        Git2Repository::log_all_branches(&path, capped).map_err(|e| e.to_string())
+        let repo = Git2Repository::open(&path);
+        repo.log_all_branches(capped).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -52,7 +54,10 @@ pub async fn get_commit_log(path: String, max_count: usize) -> Result<Vec<Commit
 /// Get all refs (branches, tags, HEAD) for graph labels.
 #[tauri::command]
 pub async fn get_refs(path: String) -> Result<Vec<RefInfo>, String> {
-    tokio::task::spawn_blocking(move || Git2Repository::refs(&path).map_err(|e| e.to_string()))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
+    tokio::task::spawn_blocking(move || {
+        let repo = Git2Repository::open(&path);
+        repo.refs().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }

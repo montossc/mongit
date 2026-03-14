@@ -1,7 +1,11 @@
+use std::path::{Path, PathBuf};
+
 use git2::{BranchType, Delta, DiffOptions, ErrorCode, Sort, Status, StatusOptions};
 use serde::Serialize;
 
 use super::GitError;
+
+// ── Data types ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RepoStatusInfo {
@@ -9,6 +13,7 @@ pub struct RepoStatusInfo {
     pub staged_files: usize,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 pub enum DiffFileStatus {
     Added,
@@ -17,6 +22,7 @@ pub enum DiffFileStatus {
     Renamed,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 pub struct DiffLineInfo {
     pub origin: char,
@@ -25,6 +31,7 @@ pub struct DiffLineInfo {
     pub new_lineno: Option<u32>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 pub struct DiffHunkInfo {
     pub old_start: u32,
@@ -35,6 +42,7 @@ pub struct DiffHunkInfo {
     pub lines: Vec<DiffLineInfo>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 pub struct DiffFileEntry {
     pub path: String,
@@ -52,6 +60,7 @@ pub struct CommitInfo {
     pub parent_ids: Vec<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 pub struct BranchInfo {
     pub name: String,
@@ -74,11 +83,72 @@ pub enum RefType {
     Head,
 }
 
-pub struct Git2Repository;
+// ── GitRepository trait ─────────────────────────────────────────────────
+
+/// Trait abstracting read-only git operations.
+///
+/// All methods take `&self` — implementations store the repo path internally
+/// and open the repository per-call (no shared `Repository` state).
+///
+/// This enables:
+/// - Mock implementations for testing
+/// - Trait objects for dependency injection in commands
+/// - Clean separation between read (git2) and write (CLI) paths
+#[allow(dead_code)]
+pub trait GitRepository: Send + Sync {
+    /// Working directory status (changed + staged file counts).
+    fn status(&self) -> Result<RepoStatusInfo, GitError>;
+
+    /// Diff of working directory against the index.
+    fn diff_workdir(&self) -> Result<Vec<DiffFileEntry>, GitError>;
+
+    /// Commit log from HEAD, topological + time ordered.
+    fn log(&self, max_count: usize) -> Result<Vec<CommitInfo>, GitError>;
+
+    /// Commit log from all branches (local + remote).
+    fn log_all_branches(&self, max_count: usize) -> Result<Vec<CommitInfo>, GitError>;
+
+    /// List local branches.
+    fn branches(&self) -> Result<Vec<BranchInfo>, GitError>;
+
+    /// List all refs (HEAD, local branches, remote branches, tags).
+    fn refs(&self) -> Result<Vec<RefInfo>, GitError>;
+
+    /// Current branch name (None if detached HEAD or unborn).
+    fn current_branch(&self) -> Result<Option<String>, GitError>;
+}
+
+// ── Git2Repository (git2 read implementation) ───────────────────────────
+
+/// Read-only git operations backed by libgit2.
+///
+/// Opens the repository from `path` on every call (open-per-call pattern).
+/// This avoids `Arc<Mutex<Repository>>` and the Send/Sync constraints of git2.
+pub struct Git2Repository {
+    path: PathBuf,
+}
 
 impl Git2Repository {
-    pub fn status(path: &str) -> Result<RepoStatusInfo, GitError> {
-        let repo = git2::Repository::open(path)?;
+    /// Create a new Git2Repository for the given working directory.
+    pub fn open(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    /// Access the stored path.
+    #[allow(dead_code)]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Internal helper: open the git2 repository.
+    fn repo(&self) -> Result<git2::Repository, GitError> {
+        Ok(git2::Repository::open(&self.path)?)
+    }
+}
+
+impl GitRepository for Git2Repository {
+    fn status(&self) -> Result<RepoStatusInfo, GitError> {
+        let repo = self.repo()?;
 
         let mut opts = StatusOptions::new();
         opts.include_untracked(true)
@@ -122,10 +192,10 @@ impl Git2Repository {
         })
     }
 
-    pub fn diff_workdir(path: &str) -> Result<Vec<DiffFileEntry>, GitError> {
+    fn diff_workdir(&self) -> Result<Vec<DiffFileEntry>, GitError> {
         use std::cell::RefCell;
 
-        let repo = git2::Repository::open(path)?;
+        let repo = self.repo()?;
 
         let mut opts = DiffOptions::new();
         opts.include_untracked(true)
@@ -195,8 +265,8 @@ impl Git2Repository {
         Ok(entries.into_inner())
     }
 
-    pub fn log(path: &str, max_count: usize) -> Result<Vec<CommitInfo>, GitError> {
-        let repo = git2::Repository::open(path)?;
+    fn log(&self, max_count: usize) -> Result<Vec<CommitInfo>, GitError> {
+        let repo = self.repo()?;
         let mut revwalk = repo.revwalk()?;
         revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
         revwalk.push_head()?;
@@ -224,8 +294,8 @@ impl Git2Repository {
         Ok(commits)
     }
 
-    pub fn log_all_branches(path: &str, max_count: usize) -> Result<Vec<CommitInfo>, GitError> {
-        let repo = git2::Repository::open(path)?;
+    fn log_all_branches(&self, max_count: usize) -> Result<Vec<CommitInfo>, GitError> {
+        let repo = self.repo()?;
         let mut revwalk = repo.revwalk()?;
         revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
 
@@ -258,8 +328,8 @@ impl Git2Repository {
         Ok(commits)
     }
 
-    pub fn branches(path: &str) -> Result<Vec<BranchInfo>, GitError> {
-        let repo = git2::Repository::open(path)?;
+    fn branches(&self) -> Result<Vec<BranchInfo>, GitError> {
+        let repo = self.repo()?;
         let mut out = Vec::new();
 
         for branch_result in repo.branches(Some(BranchType::Local))? {
@@ -282,8 +352,8 @@ impl Git2Repository {
         Ok(out)
     }
 
-    pub fn refs(path: &str) -> Result<Vec<RefInfo>, GitError> {
-        let repo = git2::Repository::open(path)?;
+    fn refs(&self) -> Result<Vec<RefInfo>, GitError> {
+        let repo = self.repo()?;
         let mut out = Vec::new();
 
         if let Ok(head) = repo.head() {
@@ -338,8 +408,8 @@ impl Git2Repository {
         Ok(out)
     }
 
-    pub fn current_branch(path: &str) -> Result<Option<String>, GitError> {
-        let repo = git2::Repository::open(path)?;
+    fn current_branch(&self) -> Result<Option<String>, GitError> {
+        let repo = self.repo()?;
         let head = match repo.head() {
             Ok(head) => head,
             Err(err)

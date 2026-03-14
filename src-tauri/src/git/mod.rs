@@ -1,4 +1,3 @@
-// Public API for downstream beads (bd-15p, bd-2n2) — items not yet consumed locally.
 pub mod cli;
 pub mod error;
 pub mod repository;
@@ -6,8 +5,8 @@ pub mod repository;
 #[allow(unused_imports)]
 pub use cli::GitCli;
 pub use error::GitError;
-#[allow(unused_imports)]
-pub use repository::Git2Repository;
+pub use repository::{Git2Repository, GitRepository};
+
 #[allow(unused_imports)]
 pub use repository::{RefInfo, RefType};
 #[cfg(test)]
@@ -80,9 +79,14 @@ mod tests {
 
     #[test]
     fn test_git_error_cli() {
-        let err = GitError::Cli("fatal: not a git repository".into());
+        let err = GitError::CommandFailed {
+            cmd: "status".into(),
+            stderr: "fatal: not a git repository".into(),
+            exit_code: Some(128),
+        };
         let s: String = err.into();
-        assert!(s.contains("git cli:"));
+        assert!(s.contains("git cli failed"));
+        assert!(s.contains("not a git repository"));
     }
 
     #[test]
@@ -90,7 +94,8 @@ mod tests {
         let (dir, repo) = create_test_repo();
         let repo_path = dir.path().to_str().unwrap();
 
-        GitCli::create_branch(repo_path, "feature-1").unwrap();
+        let cli = GitCli::new(repo_path);
+        cli.create_branch("feature-1", None).unwrap();
 
         let branch = repo.find_branch("feature-1", git2::BranchType::Local);
         assert!(branch.is_ok());
@@ -101,8 +106,9 @@ mod tests {
         let (dir, repo) = create_test_repo();
         let repo_path = dir.path().to_str().unwrap();
 
-        GitCli::create_branch(repo_path, "feature-1").unwrap();
-        GitCli::switch_branch(repo_path, "feature-1").unwrap();
+        let cli = GitCli::new(repo_path);
+        cli.create_branch("feature-1", None).unwrap();
+        cli.switch_branch("feature-1").unwrap();
 
         let head = repo.head().unwrap();
         assert_eq!(head.shorthand(), Some("feature-1"));
@@ -113,10 +119,11 @@ mod tests {
         let (dir, _repo) = create_test_repo();
         let repo_path = dir.path().to_str().unwrap();
 
-        GitCli::create_branch(repo_path, "feature-1").unwrap();
-        let err = GitCli::create_branch(repo_path, "feature-1").unwrap_err();
+        let cli = GitCli::new(repo_path);
+        cli.create_branch("feature-1", None).unwrap();
+        let err = cli.create_branch("feature-1", None).unwrap_err();
 
-        assert!(matches!(err, GitError::Cli(_)));
+        assert!(matches!(err, GitError::CommandFailed { .. }));
     }
 
     #[test]
@@ -124,7 +131,8 @@ mod tests {
         let (dir, _repo) = create_test_repo();
         let path = dir.path().to_str().expect("path should be utf-8");
 
-        let status = Git2Repository::status(path).expect("status should work");
+        let repo = Git2Repository::open(path);
+        let status = repo.status().expect("status should work");
         assert_eq!(status.changed_files, 0);
         assert_eq!(status.staged_files, 0);
     }
@@ -136,7 +144,8 @@ mod tests {
 
         std::fs::write(dir.path().join("new_file.txt"), "hello\n").expect("write should succeed");
 
-        let status = Git2Repository::status(path).expect("status should work");
+        let repo = Git2Repository::open(path);
+        let status = repo.status().expect("status should work");
         assert_eq!(status.changed_files, 1);
     }
 
@@ -145,7 +154,8 @@ mod tests {
         let (dir, _repo) = create_test_repo();
         let path = dir.path().to_str().expect("path should be utf-8");
 
-        let commits = Git2Repository::log(path, 10).expect("log should work");
+        let repo = Git2Repository::open(path);
+        let commits = repo.log(10).expect("log should work");
         assert_eq!(commits.len(), 1);
         assert_eq!(commits[0].message, "Initial commit");
     }
@@ -155,9 +165,11 @@ mod tests {
         let (dir, _repo) = create_test_repo();
         let path = dir.path().to_str().expect("path should be utf-8");
 
-        GitCli::create_branch(path, "feature-1").unwrap();
+        let cli = GitCli::new(path);
+        cli.create_branch("feature-1", None).unwrap();
 
-        let commits = Git2Repository::log_all_branches(path, 100).expect("log_all should work");
+        let repo = Git2Repository::open(path);
+        let commits = repo.log_all_branches(100).expect("log_all should work");
         assert!(!commits.is_empty());
         assert_eq!(commits[0].message, "Initial commit");
     }
@@ -167,7 +179,8 @@ mod tests {
         let (dir, _repo) = create_test_repo();
         let path = dir.path().to_str().expect("path should be utf-8");
 
-        let branches = Git2Repository::branches(path).expect("branches should work");
+        let repo = Git2Repository::open(path);
+        let branches = repo.branches().expect("branches should work");
         assert!(!branches.is_empty());
     }
 
@@ -176,7 +189,8 @@ mod tests {
         let (dir, _repo) = create_test_repo();
         let path = dir.path().to_str().expect("path should be utf-8");
 
-        let refs = Git2Repository::refs(path).expect("refs should work");
+        let repo = Git2Repository::open(path);
+        let refs = repo.refs().expect("refs should work");
         assert!(refs.len() >= 2);
         assert!(refs
             .iter()
@@ -191,7 +205,8 @@ mod tests {
         let (dir, _repo) = create_test_repo();
         let path = dir.path().to_str().expect("path should be utf-8");
 
-        let branch = Git2Repository::current_branch(path).expect("current_branch should work");
+        let repo = Git2Repository::open(path);
+        let branch = repo.current_branch().expect("current_branch should work");
         assert!(matches!(branch.as_deref(), Some("main") | Some("master")));
     }
 
@@ -203,7 +218,8 @@ mod tests {
         std::fs::write(dir.path().join("diff_file.txt"), "line 1\nline 2\n")
             .expect("write should succeed");
 
-        let diff = Git2Repository::diff_workdir(path).expect("diff should work");
+        let repo = Git2Repository::open(path);
+        let diff = repo.diff_workdir().expect("diff should work");
         assert!(!diff.is_empty());
         assert!(diff
             .iter()
@@ -251,10 +267,11 @@ mod tests {
 
         let path_str = dir.path().to_str().unwrap();
 
+        let repo = Git2Repository::open(path_str);
+
         // Time the revwalk
         let start = Instant::now();
-        let commits =
-            Git2Repository::log_all_branches(path_str, 10000).expect("log should work");
+        let commits = repo.log_all_branches(10000).expect("log should work");
         let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
 
         eprintln!(
