@@ -1,0 +1,142 @@
+{
+	"beadId": "bd-ufr",
+	"prdName": "git-engine-hybrid",
+	"tasks": [
+		{
+			"id": "foundation-1",
+			"category": "foundation",
+			"title": "Define GitError enum",
+			"description": "`src-tauri/src/git/error.rs` contains a `GitError` enum with `Git2`, `Cli`, `NotFound`, and `Io` variants, all deriving `thiserror::Error`, with `From<git2::Error>` and `From<std::io::Error>` impls and a `From<GitError> for String` conversion for Tauri IPC.",
+			"steps": [
+				"`cargo check --manifest-path src-tauri/Cargo.toml` passes",
+				"`src-tauri/src/git/error.rs` exists with all 4 variants"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src-tauri/src/git/error.rs",
+					"src-tauri/src/git/mod.rs",
+					"src-tauri/src/lib.rs",
+					"src-tauri/Cargo.toml"
+				]
+			}
+		},
+		{
+			"id": "core-1",
+			"category": "core",
+			"title": "Implement git2 read operations",
+			"description": "`src-tauri/src/git/repository.rs` contains a `Git2Repository` struct with methods for `status()`, `diff_workdir()`, `log()`, `branches()`, and `current_branch()`, all returning owned types with no lifetime dependencies on `git2::Repository`.",
+			"steps": [
+				"`cargo check --manifest-path src-tauri/Cargo.toml` passes",
+				"`cargo test --manifest-path src-tauri/Cargo.toml -- git::repository` passes (at least 5 tests)"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["foundation-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/git/repository.rs", "src-tauri/src/git/mod.rs"]
+			}
+		},
+		{
+			"id": "core-2",
+			"category": "core",
+			"title": "Implement git CLI write operations",
+			"description": "`src-tauri/src/git/cli.rs` contains a `GitCli` struct with methods for `create_branch()` and `switch_branch()`, executing git commands via `std::process::Command` with full stderr capture and structured error reporting.",
+			"steps": [
+				"`cargo check --manifest-path src-tauri/Cargo.toml` passes",
+				"`cargo test --manifest-path src-tauri/Cargo.toml -- git::cli` passes (at least 3 tests)"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["foundation-1"],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/git/cli.rs", "src-tauri/src/git/mod.rs"]
+			}
+		},
+		{
+			"id": "testing-1",
+			"category": "testing",
+			"title": "Add tempfile dev-dependency and test infrastructure",
+			"description": "`src-tauri/Cargo.toml` has `tempfile` in `[dev-dependencies]`, and a test helper function exists that creates a temporary git repository with initial commit for use across all git module tests.",
+			"steps": [
+				"`cargo test --manifest-path src-tauri/Cargo.toml -- git::tests::test_helper` passes",
+				"`grep \"tempfile\" src-tauri/Cargo.toml` shows entry in `[dev-dependencies]`"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src-tauri/Cargo.toml", "src-tauri/src/git/mod.rs"]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"title": "Refactor get_repo_status to use git module",
+			"description": "`src-tauri/src/commands.rs` delegates to `Git2Repository::status()` and `Git2Repository::current_branch()` instead of inline git2 calls, with `spawn_blocking` wrapping the blocking git2 work.",
+			"steps": [
+				"`cargo check --manifest-path src-tauri/Cargo.toml` passes",
+				"`grep -c \"git2::Repository::open\" src-tauri/src/commands.rs` returns 0",
+				"`cargo test --manifest-path src-tauri/Cargo.toml` — all tests pass",
+				"`pnpm check` passes (no frontend regressions)"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["core-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/commands.rs"]
+			}
+		},
+		{
+			"id": "validation-1",
+			"category": "validation",
+			"title": "Validate open-per-call pattern",
+			"description": "No `Arc<Mutex<Repository>>` exists in the codebase; all git2 access is inside `spawn_blocking` closures; concurrent command execution works without lock contention.",
+			"steps": [
+				"`grep -r \"Arc<Mutex\" src-tauri/src/ | grep -ci repo` returns 0",
+				"`grep -r \"spawn_blocking\" src-tauri/src/commands.rs` returns at least 1 match",
+				"`cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings` passes"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["integration-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": []
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Per-call Repository open: src-tauri/src/commands.rs",
+			"Tauri command registration: src-tauri/src/lib.rs generate_handler![]",
+			"Serde response structs: #[derive(Debug, Serialize)]",
+			"Shell plugin scope: git command allowed in tauri.conf.json"
+		],
+		"keyFiles": [
+			"src-tauri/src/commands.rs",
+			"src-tauri/src/lib.rs",
+			"src-tauri/Cargo.toml",
+			"docs/research/2026-03-13-git-engine-architecture-recommendation.md"
+		],
+		"nonGoals": [
+			"Arc<Mutex<Repository>> shared state pattern",
+			"Full write operation coverage (only create_branch and switch_branch for spike)",
+			"In-process hook execution (deferred to MVP)"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": [],
+		"parallel": true,
+		"conflicts_with": ["bd-15p"],
+		"blocks": [],
+		"estimated_hours": 8
+	}
+}

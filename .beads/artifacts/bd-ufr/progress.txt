@@ -1,0 +1,15 @@
+# Progress Log
+
+Bead: bd-ufr
+Started: 2026-03-14
+
+## Codebase Patterns
+
+- Per-call `git2::Repository::open()` — current pattern in commands.rs
+- `#[tauri::command]` returning `Result<T, String>` for IPC
+- `thiserror` 2 already available in Cargo.toml
+- git2 0.20 with vendored-libgit2 feature
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
