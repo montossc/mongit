@@ -1,0 +1,26 @@
+# Progress Log
+
+Bead: bd-15p
+Started: 2026-03-14
+
+## Codebase Patterns
+
+- Git module at src-tauri/src/git/ (error.rs, repository.rs, cli.rs, mod.rs) — established by bd-ufr
+- Git2Repository::log(path, max_count) already returns Vec<CommitInfo> with parent_ids
+- Git2Repository::branches(path) returns Vec<BranchInfo> with name, is_head, target
+- Tauri commands use spawn_blocking for git2 access
+- Svelte 5 runes ($state, $effect, $derived) for reactive state
+- Design tokens in src/app.css include graph colors and font-mono
+
+## Execution Waves
+
+Wave 1: backend-1 (Rust log IPC) ∥ frontend-1 (types + layout engine)
+Wave 2: frontend-2 (Canvas renderer)
+Wave 3: frontend-3 (hit testing) ∥ frontend-5 (FPS overlay)
+Wave 4: frontend-4 (commit detail)
+Wave 5: integration-1 (wire full slice)
+Wave 6: validation-1 (10k perf test)
+
+---
+
+<!-- Task logs below - APPEND ONLY -->

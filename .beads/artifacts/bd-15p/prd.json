@@ -1,0 +1,173 @@
+{
+	"beadId": "bd-15p",
+	"prdName": "canvas-2d-commit-graph",
+	"tasks": [
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"description": "Implement get_commit_log and get_refs Tauri commands that return structured commit DAG data from git2::Revwalk. Create src-tauri/src/git/ log types and register commands in lib.rs.",
+			"steps": [
+				"cargo check --manifest-path src-tauri/Cargo.toml passes",
+				"invoke('get_commit_log', { path: '.', maxCount: 100 }) returns commit array with parents"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src-tauri/src/git/mod.rs",
+					"src-tauri/src/git/log.rs",
+					"src-tauri/src/git/types.rs",
+					"src-tauri/src/commands.rs",
+					"src-tauri/src/lib.rs"
+				]
+			}
+		},
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"description": "Define CommitNode, GraphSegment, LayoutResult types. Implement assignLanes() and buildSegments() as pure functions. Layout 10k synthetic commits in < 100ms.",
+			"steps": [
+				"pnpm check passes",
+				"Generate 10k synthetic commits, run layout, verify lane count < 50 and no lane < 0",
+				"Console.time layout < 100ms"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src/lib/graph/types.ts", "src/lib/graph/layout.ts"]
+			}
+		},
+		{
+			"id": "frontend-2",
+			"category": "frontend",
+			"description": "Implement render.ts with batched draw functions (edges, nodes, labels, text, selection, hover). Implement virtual scrolling with sticky canvas + spacer div pattern. Handle Retina DPR scaling.",
+			"steps": [
+				"pnpm check passes",
+				"Renders synthetic data without glitches",
+				"Frame time < 8ms in performance overlay"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/graph/render.ts"]
+			}
+		},
+		{
+			"id": "frontend-3",
+			"category": "frontend",
+			"description": "Implement hitTest.ts for mouse to element mapping. Wire click, hover, right-click, and keyboard events in GraphCanvas.svelte. Implement context menu component.",
+			"steps": [
+				"pnpm check passes",
+				"Click selects commit, hover highlights row, arrow keys navigate, right-click shows menu"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-1", "frontend-2"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/graph/hitTest.ts",
+					"src/lib/graph/GraphCanvas.svelte",
+					"src/lib/graph/ContextMenu.svelte"
+				]
+			}
+		},
+		{
+			"id": "frontend-4",
+			"category": "frontend",
+			"description": "Build CommitDetail.svelte showing full commit info when a commit is selected. Include: hash (copyable), author, date, message, parent links, refs.",
+			"steps": [
+				"pnpm check passes",
+				"Selecting a commit shows detail panel with all fields populated"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-3"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/graph/CommitDetail.svelte"]
+			}
+		},
+		{
+			"id": "frontend-5",
+			"category": "frontend",
+			"description": "Build FpsOverlay.svelte showing FPS, frame time, visible rows, total commits, layout time. Toggleable with a keyboard shortcut.",
+			"steps": [
+				"pnpm check passes",
+				"FPS counter visible in top-right corner, shows accurate frame timing"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-2"],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src/lib/graph/FpsOverlay.svelte"]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Connect Rust backend to frontend: invoke get_commit_log on page load, feed results through layout engine, render in canvas. Update +page.svelte to show the graph view with sidebar. Add repo path selection (open folder dialog via Tauri).",
+			"steps": [
+				"pnpm check + cargo check both pass",
+				"Open a real git repo with 1k+ commits — graph renders, interactions work, FPS overlay shows data"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["backend-1", "frontend-3", "frontend-4", "frontend-5"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/routes/+page.svelte"]
+			}
+		},
+		{
+			"id": "validation-1",
+			"category": "validation",
+			"description": "Open a large real repo (git/git, torvalds/linux, or generate synthetic 10k DAG). Verify all success criteria: 60fps scroll, correct topology, crisp Retina rendering, no visual glitches.",
+			"steps": [
+				"FPS overlay shows >= 55fps during continuous scroll with 10k commits",
+				"Layout time < 100ms",
+				"No blank frames, all interactions responsive"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["integration-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": []
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Git module: src-tauri/src/git/ (error.rs, repository.rs, cli.rs, mod.rs)",
+			"Tauri commands: src-tauri/src/commands.rs with spawn_blocking",
+			"IPC: invoke() from @tauri-apps/api/core",
+			"Svelte 5 runes: $state, $effect, $derived"
+		],
+		"keyFiles": [
+			"src-tauri/src/git/repository.rs",
+			"src-tauri/src/commands.rs",
+			"src-tauri/src/lib.rs",
+			"src/app.css"
+		],
+		"nonGoals": [
+			"Remote branch rendering",
+			"Interactive rebase visualization",
+			"Multi-repo support"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-ufr"],
+		"parallel": true,
+		"conflicts_with": ["bd-2n2"],
+		"blocks": [],
+		"estimated_hours": 16
+	}
+}
