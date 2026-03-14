@@ -1,6 +1,10 @@
+pub mod cli;
 pub mod error;
+pub mod repository;
 
+pub use cli::GitCli;
 pub use error::GitError;
+pub use repository::Git2Repository;
 
 #[cfg(test)]
 mod tests {
@@ -75,5 +79,103 @@ mod tests {
         let err = GitError::Cli("fatal: not a git repository".into());
         let s: String = err.into();
         assert!(s.contains("git cli:"));
+    }
+
+    #[test]
+    fn test_create_branch() {
+        let (dir, repo) = create_test_repo();
+        let repo_path = dir.path().to_str().unwrap();
+
+        GitCli::create_branch(repo_path, "feature-1").unwrap();
+
+        let branch = repo.find_branch("feature-1", git2::BranchType::Local);
+        assert!(branch.is_ok());
+    }
+
+    #[test]
+    fn test_switch_branch() {
+        let (dir, repo) = create_test_repo();
+        let repo_path = dir.path().to_str().unwrap();
+
+        GitCli::create_branch(repo_path, "feature-1").unwrap();
+        GitCli::switch_branch(repo_path, "feature-1").unwrap();
+
+        let head = repo.head().unwrap();
+        assert_eq!(head.shorthand(), Some("feature-1"));
+    }
+
+    #[test]
+    fn test_create_duplicate_branch_fails() {
+        let (dir, _repo) = create_test_repo();
+        let repo_path = dir.path().to_str().unwrap();
+
+        GitCli::create_branch(repo_path, "feature-1").unwrap();
+        let err = GitCli::create_branch(repo_path, "feature-1").unwrap_err();
+
+        assert!(matches!(err, GitError::Cli(_)));
+    }
+
+    #[test]
+    fn test_status_clean_repo() {
+        let (dir, _repo) = create_test_repo();
+        let path = dir.path().to_str().expect("path should be utf-8");
+
+        let status = Git2Repository::status(path).expect("status should work");
+        assert_eq!(status.changed_files, 0);
+        assert_eq!(status.staged_files, 0);
+    }
+
+    #[test]
+    fn test_status_with_changes() {
+        let (dir, _repo) = create_test_repo();
+        let path = dir.path().to_str().expect("path should be utf-8");
+
+        std::fs::write(dir.path().join("new_file.txt"), "hello\n").expect("write should succeed");
+
+        let status = Git2Repository::status(path).expect("status should work");
+        assert_eq!(status.changed_files, 1);
+    }
+
+    #[test]
+    fn test_log_returns_commits() {
+        let (dir, _repo) = create_test_repo();
+        let path = dir.path().to_str().expect("path should be utf-8");
+
+        let commits = Git2Repository::log(path, 10).expect("log should work");
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].message, "Initial commit");
+    }
+
+    #[test]
+    fn test_branches_lists_default() {
+        let (dir, _repo) = create_test_repo();
+        let path = dir.path().to_str().expect("path should be utf-8");
+
+        let branches = Git2Repository::branches(path).expect("branches should work");
+        assert!(!branches.is_empty());
+    }
+
+    #[test]
+    fn test_current_branch() {
+        let (dir, _repo) = create_test_repo();
+        let path = dir.path().to_str().expect("path should be utf-8");
+
+        let branch = Git2Repository::current_branch(path).expect("current_branch should work");
+        assert!(matches!(branch.as_deref(), Some("main") | Some("master")));
+    }
+
+    #[test]
+    fn test_diff_workdir_shows_changes() {
+        let (dir, _repo) = create_test_repo();
+        let path = dir.path().to_str().expect("path should be utf-8");
+
+        std::fs::write(dir.path().join("diff_file.txt"), "line 1\nline 2\n")
+            .expect("write should succeed");
+
+        let diff = Git2Repository::diff_workdir(path).expect("diff should work");
+        assert!(!diff.is_empty());
+        assert!(diff
+            .iter()
+            .any(|entry| entry.path.ends_with("diff_file.txt")));
     }
 }
