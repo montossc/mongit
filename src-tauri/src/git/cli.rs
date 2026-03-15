@@ -10,14 +10,24 @@ use super::GitError;
 /// git2 lacks support for hooks, GPG signing, and credential helpers,
 /// so all mutating operations go through the real git binary.
 /// Each call spawns a new `git -C <path>` process.
+///
+/// The `git_executable` field holds the resolved absolute path to the git
+/// binary (from `GitResolver`), ensuring deterministic invocations.
 pub struct GitCli {
     path: PathBuf,
+    git_executable: PathBuf,
 }
 
 impl GitCli {
     /// Create a new GitCli writer for the given working directory.
-    pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
+    ///
+    /// `git_executable` should be a resolved path from `GitResolver::resolve()`.
+    /// Falls back to `"git"` only in tests.
+    pub fn new(path: impl Into<PathBuf>, git_executable: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            git_executable: git_executable.into(),
+        }
     }
 
     /// Access the stored path.
@@ -54,7 +64,7 @@ impl GitCli {
     /// with the command string, stderr, and exit code.
     fn run_git(&self, args: &[&str]) -> Result<String, GitError> {
         let path_str = self.path.to_string_lossy();
-        let output = Command::new("git")
+        let output = Command::new(&self.git_executable)
             .arg("-C")
             .arg(path_str.as_ref())
             .args(args)

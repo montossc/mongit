@@ -1,11 +1,15 @@
 pub mod cli;
 pub mod error;
 pub mod repository;
+pub mod resolver;
 
 #[allow(unused_imports)]
 pub use cli::GitCli;
 pub use error::GitError;
 pub use repository::{Git2Repository, GitRepository};
+
+#[allow(unused_imports)]
+pub use resolver::{GitResolver, GitSource, GitVersion, ResolvedGit};
 
 #[allow(unused_imports)]
 pub use repository::{RefInfo, RefType};
@@ -94,7 +98,7 @@ mod tests {
         let (dir, repo) = create_test_repo();
         let repo_path = dir.path().to_str().unwrap();
 
-        let cli = GitCli::new(repo_path);
+        let cli = GitCli::new(repo_path, "git");
         cli.create_branch("feature-1", None).unwrap();
 
         let branch = repo.find_branch("feature-1", git2::BranchType::Local);
@@ -106,7 +110,7 @@ mod tests {
         let (dir, repo) = create_test_repo();
         let repo_path = dir.path().to_str().unwrap();
 
-        let cli = GitCli::new(repo_path);
+        let cli = GitCli::new(repo_path, "git");
         cli.create_branch("feature-1", None).unwrap();
         cli.switch_branch("feature-1").unwrap();
 
@@ -119,7 +123,7 @@ mod tests {
         let (dir, _repo) = create_test_repo();
         let repo_path = dir.path().to_str().unwrap();
 
-        let cli = GitCli::new(repo_path);
+        let cli = GitCli::new(repo_path, "git");
         cli.create_branch("feature-1", None).unwrap();
         let err = cli.create_branch("feature-1", None).unwrap_err();
 
@@ -165,7 +169,7 @@ mod tests {
         let (dir, _repo) = create_test_repo();
         let path = dir.path().to_str().expect("path should be utf-8");
 
-        let cli = GitCli::new(path);
+        let cli = GitCli::new(path, "git");
         cli.create_branch("feature-1", None).unwrap();
 
         let repo = Git2Repository::open(path);
@@ -225,7 +229,6 @@ mod tests {
             .iter()
             .any(|entry| entry.path.ends_with("diff_file.txt")));
     }
-}
 
     #[test]
     fn test_perf_log_all_branches_1k() {
@@ -288,3 +291,53 @@ mod tests {
             "log_all_branches too slow: {elapsed_ms:.1}ms for {commit_count} commits"
         );
     }
+
+    /// Integration test: resolve git binary, construct GitCli with resolved path,
+    /// create a branch, and verify it exists via Git2Repository.
+    #[test]
+    fn test_integration_resolve_and_create_branch() {
+        // Step 1: Resolve git binary
+        let resolved = GitResolver::resolve().expect("git should be resolvable on dev machine");
+        assert!(
+            resolved.path.exists(),
+            "resolved git path should exist: {:?}",
+            resolved.path
+        );
+        assert!(
+            resolved.version.major > 2
+                || (resolved.version.major == 2 && resolved.version.minor >= 35),
+            "resolved git version should be >= 2.35, got {}",
+            resolved.version
+        );
+
+        // Step 2: Create temp repo with initial commit
+        let (dir, repo) = create_test_repo();
+        let repo_path = dir.path().to_str().unwrap();
+
+        // Step 3: Construct GitCli with the resolved path
+        let cli = GitCli::new(repo_path, &resolved.path);
+
+        // Step 4: Create a branch via the CLI
+        cli.create_branch("integration-test-branch", None)
+            .expect("branch creation should succeed with resolved git");
+
+        // Step 5: Verify the branch exists via Git2Repository (read path)
+        let branch = repo
+            .find_branch("integration-test-branch", git2::BranchType::Local)
+            .expect("branch should exist after creation");
+        assert!(
+            branch.name().unwrap().is_some(),
+            "branch should have a name"
+        );
+
+        // Step 6: Verify source is either EnvOverride or SystemPath
+        assert!(
+            matches!(
+                resolved.source,
+                resolver::GitSource::EnvOverride | resolver::GitSource::SystemPath
+            ),
+            "source should be EnvOverride or SystemPath, got {:?}",
+            resolved.source
+        );
+    }
+}

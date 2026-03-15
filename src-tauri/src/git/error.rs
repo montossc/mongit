@@ -25,6 +25,14 @@ pub enum GitError {
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
 
+    /// Git binary not found on the system
+    #[error("git not found: {message}")]
+    GitNotFound { message: String },
+
+    /// Git binary version is too old
+    #[error("git version {found} is too old (minimum: {minimum})")]
+    GitVersionTooOld { found: String, minimum: String },
+
     /// Filesystem I/O error
     #[error("io: {0}")]
     Io(#[from] std::io::Error),

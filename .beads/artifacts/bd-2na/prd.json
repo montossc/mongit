@@ -1,0 +1,113 @@
+{
+	"beadId": "bd-2na",
+	"prdName": "bundled-git-strategy",
+	"tasks": [
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"description": "Add GitNotFound and GitVersionTooOld error variants to GitError enum in error.rs",
+			"steps": ["cd src-tauri && cargo check"],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/git/error.rs"]
+			}
+		},
+		{
+			"id": "backend-2",
+			"category": "backend",
+			"description": "Implement GitResolver module: resolve() returns ResolvedGit { path, version } via GIT_EXECUTABLE env var, then system PATH (which::which), then error. Version validated >= 2.35.",
+			"steps": [
+				"cd src-tauri && cargo test --lib -- git::resolver",
+				"cd src-tauri && cargo check"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["backend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src-tauri/src/git/resolver.rs",
+					"src-tauri/src/git/mod.rs",
+					"src-tauri/Cargo.toml"
+				]
+			}
+		},
+		{
+			"id": "backend-3",
+			"category": "backend",
+			"description": "Refactor GitCli to accept resolved git path. GitCli::new() takes PathBuf, run_git() uses Command::new(&self.git_executable).",
+			"steps": [
+				"cd src-tauri && cargo test --lib -- git::cli",
+				"cd src-tauri && cargo check"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["backend-2"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/git/cli.rs"]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Integration test: create temp repo, resolve git, construct GitCli with resolved path, create branch, verify via Git2Repository.",
+			"steps": ["cd src-tauri && cargo test --lib -- git::integration"],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["backend-3"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/git/mod.rs"]
+			}
+		},
+		{
+			"id": "documentation-1",
+			"category": "documentation",
+			"description": "Document bundled git strategy: phase-gated approach, binary size analysis, packaging implications, code-signing notes, fallback policy.",
+			"steps": [
+				"test -f docs/research/2026-03-bundled-git-strategy.md",
+				"Document includes: strategy rationale, binary size table, packaging implications, future bundling path"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["docs/research/2026-03-bundled-git-strategy.md"]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Git modules: src-tauri/src/git/",
+			"Error pattern: GitError enum in error.rs with Display + thiserror",
+			"CLI pattern: GitCli::run_git() uses Command::new()",
+			"Open-per-call: stateless pattern for Git2Repository"
+		],
+		"keyFiles": [
+			"src-tauri/src/git/cli.rs",
+			"src-tauri/src/git/error.rs",
+			"src-tauri/src/git/mod.rs",
+			"src-tauri/src/git/repository.rs",
+			"src-tauri/Cargo.toml"
+		],
+		"nonGoals": [
+			"Full push/fetch/pull implementation",
+			"GPG/SSH signing support",
+			"Windows/Linux packaging",
+			"Bundling git binary inside .app",
+			"UI for error dialog"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": [],
+		"parallel": true,
+		"conflicts_with": [],
+		"blocks": [],
+		"estimated_hours": 4
+	}
+}

@@ -1,0 +1,52 @@
+# Progress Log
+
+Bead: bd-2na
+Started: 2026-03-15
+
+## Codebase Patterns
+
+<!-- Consolidate reusable patterns here -->
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
+
+## Wave 1 (parallel) — 2026-03-15
+
+### backend-1 ✓ (commit bdf9ac3)
+- Added `GitNotFound { message: String }` and `GitVersionTooOld { found: String, minimum: String }` to `GitError` enum
+- `cargo check` passed
+
+### documentation-1 ✓ (commit e53034e)
+- Created `docs/research/2026-03-bundled-git-strategy.md` (210 lines)
+- Covers strategy rationale, binary size table, packaging implications, future bundling path
+
+## Wave 2 — 2026-03-15
+
+### backend-2 ✓ (commit e6c4aac)
+- Created `src-tauri/src/git/resolver.rs` with GitResolver::resolve()
+- Priority chain: GIT_EXECUTABLE → system PATH → error
+- ResolvedGit { path, version, source } return type
+- 15 unit tests passing
+- Added `which = "8"` to Cargo.toml
+
+## Wave 3 — 2026-03-15
+
+### backend-3 ✓ (commit 3bdedd3)
+- Added `git_executable: PathBuf` field to GitCli
+- `GitCli::new()` now takes `(path, git_executable)` 
+- `run_git()` uses `Command::new(&self.git_executable)`
+- Updated 4 existing tests
+
+## Wave 4 — 2026-03-15
+
+### integration-1 ✓ (commit 7197b20)
+- Resolves git via GitResolver::resolve()
+- Constructs GitCli with resolved path
+- Creates branch, verifies via git2::Repository
+
+## Verification — 2026-03-15
+- cargo check: PASS (0 warnings)
+- cargo test --lib: PASS (40/40 tests)
+- cargo clippy: PASS (0 warnings)
+- pnpm check: PASS (0 errors, 6 warnings pre-existing)
