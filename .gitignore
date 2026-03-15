@@ -40,3 +40,6 @@ src-tauri/target/
 # Beads runtime
 .beads/beads.db
 __pycache__/
+
+# bv (beads viewer) local config and caches
+.bv/
