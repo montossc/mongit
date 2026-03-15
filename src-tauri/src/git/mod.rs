@@ -1,3 +1,4 @@
+pub mod branch;
 pub mod cli;
 pub mod error;
 pub mod repository;
@@ -54,6 +55,39 @@ mod tests {
         drop(tree);
 
         (dir, repo)
+    }
+
+    /// Create a temporary git repository with an initial commit and a local bare remote.
+    /// The initial commit is pushed to the bare remote with upstream tracking configured.
+    /// Returns (working_dir, bare_dir) — caller must keep both TempDirs alive.
+    pub fn create_test_repo_with_remote() -> (tempfile::TempDir, tempfile::TempDir) {
+        // Create bare remote
+        let bare_dir = tempfile::TempDir::new().expect("Failed to create bare temp dir");
+        git2::Repository::init_bare(bare_dir.path()).expect("Failed to init bare repo");
+
+        // Create working repo with initial commit
+        let (work_dir, work_repo) = create_test_repo();
+
+        // Add bare as "origin" remote
+        work_repo
+            .remote("origin", bare_dir.path().to_str().unwrap())
+            .expect("Failed to add remote");
+
+        // Push initial commit to bare remote via CLI
+        let work_path = work_dir.path().to_str().unwrap();
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(work_path)
+            .args(["push", "-u", "origin", "HEAD"])
+            .output()
+            .expect("Failed to push to bare repo");
+        assert!(
+            output.status.success(),
+            "Failed to push initial commit: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        (work_dir, bare_dir)
     }
 
     #[test]

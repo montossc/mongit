@@ -1,0 +1,137 @@
+{
+	"beadId": "bd-2uj",
+	"prdName": "mvp-branch-operations",
+	"tasks": [
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"description": "Extend error types with BranchOpError enum and stderr parser in src-tauri/src/git/error.rs",
+			"steps": [
+				"cd src-tauri && cargo check",
+				"cd src-tauri && cargo test test_error_parsing"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/git/error.rs"]
+			}
+		},
+		{
+			"id": "backend-2",
+			"category": "backend",
+			"description": "Implement branch delete with pre-flight safety checks (is_head via git2, safe -d vs force -D)",
+			"steps": [
+				"cd src-tauri && cargo test test_delete_branch",
+				"cd src-tauri && cargo test test_delete_current_branch_fails",
+				"cd src-tauri && cargo test test_delete_unmerged_branch_safe",
+				"cd src-tauri && cargo test test_force_delete_unmerged_branch"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["backend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/git/branch.rs", "src-tauri/src/git/mod.rs"]
+			}
+		},
+		{
+			"id": "backend-3",
+			"category": "backend",
+			"description": "Implement fetch, pull, push wrappers using tokio::process::Command with GIT_TERMINAL_PROMPT=0",
+			"steps": [
+				"cd src-tauri && cargo check",
+				"cd src-tauri && cargo test test_fetch",
+				"cd src-tauri && cargo test test_push",
+				"cd src-tauri && cargo test test_pull"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["backend-1"],
+				"parallel": true,
+				"conflicts_with": ["backend-2"],
+				"files": ["src-tauri/src/git/branch.rs", "src-tauri/src/git/cli.rs"]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Add Tauri command handlers and register in generate_handler![]",
+			"steps": [
+				"cd src-tauri && cargo check",
+				"cd src-tauri && cargo test --lib"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["backend-2", "backend-3"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/commands.rs", "src-tauri/src/lib.rs"]
+			}
+		},
+		{
+			"id": "test-1",
+			"category": "test",
+			"description": "Add integration tests for failure modes (delete HEAD, unmerged safe/force, push non-ff, fetch missing remote, pull dirty tree)",
+			"steps": [
+				"cd src-tauri && cargo test branch -- --nocapture",
+				"cd src-tauri && cargo clippy -- -D warnings"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["integration-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/git/mod.rs", "src-tauri/src/git/branch.rs"]
+			}
+		},
+		{
+			"id": "verification-1",
+			"category": "verification",
+			"description": "Full verification pass — all backend checks, tests, clippy, and frontend svelte-check",
+			"steps": [
+				"cd src-tauri && cargo check && cargo test --lib && cargo clippy -- -D warnings",
+				"pnpm check"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["test-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": []
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"CLI write path: GitCli::run_git() in src-tauri/src/git/cli.rs",
+			"Async blocking: spawn_blocking for git2 reads in commands.rs",
+			"Error propagation: GitError enum in src-tauri/src/git/error.rs",
+			"Test fixtures: create_test_repo() in src-tauri/src/git/mod.rs"
+		],
+		"keyFiles": [
+			"src-tauri/src/git/cli.rs",
+			"src-tauri/src/git/error.rs",
+			"src-tauri/src/git/repository.rs",
+			"src-tauri/src/git/mod.rs",
+			"src-tauri/src/commands.rs",
+			"src-tauri/src/lib.rs"
+		],
+		"nonGoals": [
+			"Interactive rebase, cherry-pick, merge conflict resolution",
+			"Credential UI",
+			"Multi-remote support",
+			"Bare --force push",
+			"Branch rename",
+			"Remote branch delete"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-2na"],
+		"parallel": false,
+		"conflicts_with": [],
+		"blocks": [],
+		"estimated_hours": 8
+	}
+}

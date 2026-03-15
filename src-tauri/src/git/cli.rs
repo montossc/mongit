@@ -62,13 +62,41 @@ impl GitCli {
     ///
     /// Returns stdout on success, or a structured `CommandFailed` error
     /// with the command string, stderr, and exit code.
-    fn run_git(&self, args: &[&str]) -> Result<String, GitError> {
+    pub(crate) fn run_git(&self, args: &[&str]) -> Result<String, GitError> {
         let path_str = self.path.to_string_lossy();
         let output = Command::new(&self.git_executable)
             .arg("-C")
             .arg(path_str.as_ref())
             .args(args)
             .output()?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            Err(GitError::CommandFailed {
+                cmd: args.join(" "),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+                exit_code: output.status.code(),
+            })
+        }
+    }
+
+    /// Run a git command asynchronously using `tokio::process::Command`.
+    ///
+    /// Designed for remote operations (fetch, pull, push) that may block for
+    /// seconds on network I/O. The thread is released during I/O wait.
+    ///
+    /// Always sets `GIT_TERMINAL_PROMPT=0` to prevent credential prompts
+    /// from hanging the subprocess.
+    pub(crate) async fn run_git_async(&self, args: &[&str]) -> Result<String, GitError> {
+        let path_str = self.path.to_string_lossy();
+        let output = tokio::process::Command::new(&self.git_executable)
+            .arg("-C")
+            .arg(path_str.as_ref())
+            .args(args)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
+            .await?;
 
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).to_string())

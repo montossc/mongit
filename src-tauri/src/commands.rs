@@ -1,7 +1,11 @@
+use std::path::PathBuf;
+
 use serde::Serialize;
 
+use crate::git::branch;
 use crate::git::{Git2Repository, GitRepository};
 use crate::git::repository::{CommitInfo, RefInfo};
+use crate::git::resolver::GitResolver;
 
 /// Basic greet command to test IPC
 #[tauri::command]
@@ -60,4 +64,89 @@ pub async fn get_refs(path: String) -> Result<Vec<RefInfo>, String> {
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
+}
+
+// ── Branch operation commands ────────────────────────────────────────────
+
+/// Resolve the git binary path via GitResolver.
+/// Called at the start of every branch command.
+fn resolve_git() -> Result<PathBuf, String> {
+    let resolved = GitResolver::resolve().map_err(String::from)?;
+    Ok(resolved.path)
+}
+
+/// Create a new local branch.
+#[tauri::command]
+pub async fn create_branch(
+    path: String,
+    branch_name: String,
+    start_point: Option<String>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        branch::create_branch(&path, &git, &branch_name, start_point.as_deref())
+            .map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Switch to an existing branch.
+#[tauri::command]
+pub async fn switch_branch(path: String, branch_name: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        branch::switch_branch(&path, &git, &branch_name).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Delete a local branch with optional force.
+#[tauri::command]
+pub async fn delete_branch(
+    path: String,
+    branch_name: String,
+    force: bool,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        branch::delete_branch(&path, &git, &branch_name, force).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Fetch latest refs and objects from origin.
+#[tauri::command]
+pub async fn fetch(path: String) -> Result<String, String> {
+    let git = resolve_git()?;
+    let path = PathBuf::from(path);
+    branch::fetch_origin(&path, &git)
+        .await
+        .map_err(String::from)
+}
+
+/// Pull changes from origin into the current branch.
+#[tauri::command]
+pub async fn pull(path: String) -> Result<String, String> {
+    let git = resolve_git()?;
+    let path = PathBuf::from(path);
+    branch::pull_origin(&path, &git)
+        .await
+        .map_err(String::from)
+}
+
+/// Push current branch to origin.
+/// If `force_with_lease` is true, uses `--force-with-lease` (never bare `--force`).
+#[tauri::command]
+pub async fn push(path: String, force_with_lease: bool) -> Result<String, String> {
+    let git = resolve_git()?;
+    let path = PathBuf::from(path);
+    branch::push_origin(&path, &git, force_with_lease)
+        .await
+        .map_err(String::from)
 }
