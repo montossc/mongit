@@ -1,6 +1,6 @@
 ---
 purpose: Project roadmap with phases, milestones, and bead organization
-updated: 2026-03-14
+updated: 2026-03-15
 ---
 
 # Roadmap
@@ -25,7 +25,7 @@ updated: 2026-03-14
 
 - [x] Tauri + SvelteKit scaffold with working IPC
 - [ ] Canvas 2D commit graph rendering 10k+ commits at 60fps
-- [ ] git2 hybrid engine (reads via git2, writes via bundled git)
+- [x] git2 hybrid engine (reads via git2, writes via bundled git)
 - [ ] CodeMirror 6 diff viewer + FSEvents file watching
 - [ ] Design system tokens established
 
@@ -35,7 +35,7 @@ updated: 2026-03-14
 | ----- | ----------------------------------------------- | ----------- |
 | A     | Tauri + SvelteKit scaffold + IPC protocol       | Done        |
 | B     | Commit graph renderer (Canvas 2D, 10k+ commits) | Not Started |
-| C     | Git engine hybrid (git2 reads + git writes)     | Not Started |
+| C     | Git engine hybrid (git2 reads + git writes)     | Done        |
 | D     | CodeMirror 6 diff/merge + FSEvents watching     | Not Started |
 
 ---
@@ -50,7 +50,7 @@ updated: 2026-03-14
 - [ ] Commit graph (visual DAG, branch labels, commit details)
 - [ ] Local changes workspace (file list, hunk/line staging, diff viewer)
 - [ ] Commit authoring (message, amend, push)
-- [ ] Branch operations (create, switch, delete, fetch, pull, push)
+- [x] Branch operations (create, switch, delete, fetch, pull, push)
 - [ ] Conflict resolution (3-pane merge editor)
 - [ ] Keyboard shortcuts + command palette
 - [ ] macOS packaging (dmg, Homebrew cask)
