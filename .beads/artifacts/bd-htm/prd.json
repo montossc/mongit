@@ -1,0 +1,129 @@
+{
+	"beadId": "bd-htm",
+	"prdName": "spike-d-diff-viewer-file-watching-backbone",
+	"tasks": [
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"description": "Expose diff_workdir() through Tauri IPC. Add get_diff_workdir command following existing spawn_blocking + open-per-call pattern.",
+			"steps": [
+				"cargo check passes in src-tauri/",
+				"cargo test diff_workdir --lib passes",
+				"Invoking get_diff_workdir with a valid repo path returns DiffFileEntry[] with real file data",
+				"Invoking get_diff_workdir with an invalid path returns structured error string, not panic"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/commands.rs", "src-tauri/src/lib.rs"]
+			}
+		},
+		{
+			"id": "backend-2",
+			"category": "backend",
+			"description": "Preserve and validate watcher lifecycle correctness under repo switches and event bursts. Keep filter rules, debounce behavior, and replacement semantics stable.",
+			"steps": [
+				"cargo test watcher --lib passes (all 8+ existing tests)",
+				"Starting watcher on valid path succeeds",
+				"Starting new watcher replaces previous watcher (old is dropped)",
+				"Stopping watcher halts new events",
+				"Filtered paths (.git/objects, .git/logs, target/, node_modules/) still suppressed",
+				"Important .git paths (.git/index, .git/HEAD, .git/refs/*) still emit events"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src-tauri/src/watcher.rs",
+					"src/lib/stores/watcher.svelte.ts"
+				]
+			}
+		},
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"description": "Load real diff entries from backend, render changed-file list in /spike-d, and show selected file diff in DiffViewer with repo-backed content instead of sample data.",
+			"steps": [
+				"pnpm check passes with 0 errors",
+				"Changed-file list loads from real repo data via get_diff_workdir",
+				"Selecting a file updates the DiffViewer with that file's original/modified content",
+				"Empty state shown when no changed files exist",
+				"Loading and error states are visible during fetch",
+				"DiffViewer renders repo-backed diff in CodeMirror MergeView",
+				"Large unchanged regions remain collapsible"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["backend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/spike-d/+page.svelte",
+					"src/lib/components/DiffViewer.svelte"
+				]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Connect repo-changed watcher events to scoped diff/status reload. External edits refresh visible diff surface without full-app reload, within ~500ms end-to-end.",
+			"steps": [
+				"External file edit triggers repo-changed event",
+				"repo-changed causes diff/status refresh for the active spike-d surface only",
+				"App does not use full-page invalidation as the default response",
+				"End-to-end file-change to UI-refresh stays within ~500ms",
+				"Debounced edits do not spam redundant refreshes",
+				"pnpm check passes with 0 errors",
+				"cargo check passes in src-tauri/"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["backend-1", "backend-2", "frontend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/stores/watcher.svelte.ts",
+					"src/routes/spike-d/+page.svelte"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"IPC commands: src-tauri/src/commands.rs with #[tauri::command] + tokio::task::spawn_blocking",
+			"Git2Repository open-per-call pattern: src-tauri/src/git/repository.rs:131-146",
+			"Svelte 5 runes stores: $state(), $derived, $effect() — see theme.svelte.ts, watcher.svelte.ts",
+			"Watcher event bridge: listen<void>('repo-changed') in WatcherMonitor.svelte:18-22",
+			"CodeMirror MergeView: DiffViewer.svelte:182-190",
+			"Design tokens: src/app.css has diff/merge color tokens"
+		],
+		"keyFiles": [
+			"src-tauri/src/commands.rs",
+			"src-tauri/src/lib.rs",
+			"src-tauri/src/watcher.rs",
+			"src-tauri/src/git/repository.rs",
+			"src/lib/stores/watcher.svelte.ts",
+			"src/lib/components/DiffViewer.svelte",
+			"src/routes/spike-d/+page.svelte"
+		],
+		"nonGoals": [
+			"Line-level or hunk-level staging actions",
+			"Conflict resolution workflow productization",
+			"Multi-repo watching",
+			"Rich per-file event payload beyond coarse repo-changed",
+			"Production changes workspace UX (bd-20d)",
+			"Full conflict workflow UX (bd-3gr)"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": [],
+		"parallel": true,
+		"conflicts_with": [],
+		"blocks": ["bd-20d", "bd-3gr", "bd-egw"],
+		"estimated_hours": 8
+	}
+}
