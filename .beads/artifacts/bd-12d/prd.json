@@ -1,0 +1,126 @@
+{
+	"beadId": "bd-12d",
+	"prdName": "spike-b-canvas-commit-graph",
+	"tasks": [
+		{
+			"id": "foundation-1",
+			"category": "foundation",
+			"description": "Validate and harden the existing graph data pipeline so layout remains deterministic on repeated runs with real and synthetic histories.",
+			"steps": [
+				"pnpm check passes",
+				"Same input history yields stable lane assignment across repeated runs",
+				"Real merge-heavy history renders without broken topology"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src/lib/graph/layout.ts", "src/lib/graph/types.ts"]
+			}
+		},
+		{
+			"id": "renderer-2",
+			"category": "renderer",
+			"description": "Harden Canvas rendering and viewport behavior for large histories, focusing on visible-range work, redraw stability, and high-density graph readability.",
+			"steps": [
+				"pnpm check passes",
+				"Rapid scroll shows no blank flashes or missing edges",
+				"HiDPI rendering remains crisp",
+				"FPS and frame-time behavior stay practical on large histories"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["foundation-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/graph/render.ts",
+					"src/lib/graph/GraphCanvas.svelte",
+					"src/lib/graph/hitTest.ts",
+					"src/lib/graph/FpsOverlay.svelte"
+				]
+			}
+		},
+		{
+			"id": "integration-3",
+			"category": "integration",
+			"description": "Move the graph spike to /spike-b, preserve interaction behavior, and make the route the canonical validation surface for real-repo and synthetic benchmarks.",
+			"steps": [
+				"/spike-b loads graph validation UI successfully",
+				"Root route no longer serves as the primary graph spike surface",
+				"Selection, hover, context menu, keyboard navigation, and commit detail behavior still work on /spike-b",
+				"Real 10k+ repo benchmark can be performed from the dedicated spike surface"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["foundation-1", "renderer-2"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/+page.svelte",
+					"src/routes/spike-b/+page.svelte",
+					"src/lib/graph/GraphCanvas.svelte",
+					"src/lib/graph/CommitDetail.svelte",
+					"src/lib/graph/FpsOverlay.svelte"
+				]
+			}
+		},
+		{
+			"id": "validation-4",
+			"category": "validation",
+			"description": "Use the dedicated spike surface to capture explicit evidence that the Canvas graph baseline is production-worthy for the target scale.",
+			"steps": [
+				"Real 10k+ repo loads successfully",
+				"Sustained scroll remains practically smooth with observable FPS data",
+				"Layout time, lane count, visible rows, and rendering behavior are recorded during manual validation"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["integration-3"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/spike-b/+page.svelte",
+					"src/lib/graph/FpsOverlay.svelte"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Graph components: src/lib/graph/",
+			"Routes: src/routes/",
+			"IPC commands: src-tauri/src/commands.rs",
+			"Canvas 2D rendering with DPR scaling",
+			"Greedy lane-assignment algorithm"
+		],
+		"keyFiles": [
+			"src/lib/graph/types.ts",
+			"src/lib/graph/layout.ts",
+			"src/lib/graph/render.ts",
+			"src/lib/graph/GraphCanvas.svelte",
+			"src/lib/graph/hitTest.ts",
+			"src/lib/graph/CommitDetail.svelte",
+			"src/lib/graph/FpsOverlay.svelte",
+			"src/routes/+page.svelte",
+			"src-tauri/src/commands.rs"
+		],
+		"nonGoals": [
+			"Advanced graph search/filter UX",
+			"Branch collapse/expand UX",
+			"IntelliSort or history-analysis features",
+			"Inline diff/history cross-navigation",
+			"Production repo-home/workspace shell UX",
+			"Replacing Canvas 2D with another rendering technology",
+			"New frontend test framework additions"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": [],
+		"parallel": true,
+		"conflicts_with": [],
+		"blocks": ["bd-145", "bd-egw"],
+		"estimated_hours": 16
+	}
+}
