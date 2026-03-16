@@ -436,8 +436,17 @@ impl GitRepository for Git2Repository {
     fn file_content_for_diff(&self, file_path: &str) -> Result<FileContentPair, GitError> {
         let repo = self.repo()?;
 
+        // Validate that file_path stays within the repo (defense-in-depth)
+        let full_path = self.path.join(file_path).canonicalize().unwrap_or_else(|_| self.path.join(file_path));
+        let repo_root = self.path.canonicalize().unwrap_or_else(|_| self.path.clone());
+        if !full_path.starts_with(&repo_root) {
+            return Err(GitError::InvalidArgument(format!(
+                "Path '{}' escapes repository root",
+                file_path
+            )));
+        }
+
         // Read modified content from working directory
-        let full_path = self.path.join(file_path);
         let modified = if full_path.exists() {
             std::fs::read_to_string(&full_path).unwrap_or_default()
         } else {

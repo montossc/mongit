@@ -21,7 +21,7 @@
 	let mergeView: MergeView | null = null;
 	let mounted = false;
 
-	const hasContent = $derived(original !== '' || modified !== '');
+	const hasContent = $derived(filename !== '');
 
 	const stats = $derived.by(() => {
 		if (!hasContent) return { original: 0, modified: 0, added: 0, removed: 0 };

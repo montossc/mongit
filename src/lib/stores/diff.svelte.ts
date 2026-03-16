@@ -41,6 +41,7 @@ function createDiffStore() {
 	let loadingContent = $state(false);
 	let error = $state<string | null>(null);
 	let repoPath = $state("");
+	let contentRequestId = 0; // Guard against out-of-order async responses
 
 	/** Fetch the list of changed files for a repository. */
 	async function fetchDiff(path: string): Promise<void> {
@@ -81,20 +82,30 @@ function createDiffStore() {
 		await fetchContent(path);
 	}
 
-	/** Internal: fetch file content pair. */
+	/** Internal: fetch file content pair with race-condition guard. */
 	async function fetchContent(filePath: string): Promise<void> {
 		if (!repoPath) return;
+		contentRequestId += 1;
+		const thisRequest = contentRequestId;
 		loadingContent = true;
 		try {
-			content = await invoke<FileContentPair>("get_file_content_for_diff", {
+			const result = await invoke<FileContentPair>("get_file_content_for_diff", {
 				path: repoPath,
 				filePath,
 			});
+			// Only apply if this is still the latest request
+			if (thisRequest === contentRequestId) {
+				content = result;
+			}
 		} catch (e) {
-			error = String(e);
-			content = null;
+			if (thisRequest === contentRequestId) {
+				error = String(e);
+				content = null;
+			}
 		} finally {
-			loadingContent = false;
+			if (thisRequest === contentRequestId) {
+				loadingContent = false;
+			}
 		}
 	}
 

@@ -76,7 +76,10 @@
 		window.addEventListener('keydown', handleKeydown);
 		// Listen for watcher repo-changed events → scoped diff refresh
 		unlistenRepoChanged = await listen('repo-changed', () => {
-			diffStore.refresh();
+			// Only refresh if the watcher is active for the same repo the diff is showing
+			if (diffStore.repoPath && watcherStore.watching && watcherStore.repoPath === diffStore.repoPath) {
+				diffStore.refresh();
+			}
 		});
 	});
 
