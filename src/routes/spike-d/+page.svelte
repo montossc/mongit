@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 	import DiffViewer from '$lib/components/DiffViewer.svelte';
 	import MergeEditor from '$lib/components/MergeEditor.svelte';
 	import WatcherMonitor from '$lib/components/WatcherMonitor.svelte';
 	import BenchmarkPanel from '$lib/components/BenchmarkPanel.svelte';
 	import { diffStore, type DiffFileStatus } from '$lib/stores/diff.svelte';
+	import { watcherStore } from '$lib/stores/watcher.svelte';
 
 	const tabs = [
 		{ id: 'diff', label: 'Diff Viewer' },
@@ -17,6 +19,7 @@
 
 	let activeTab = $state<TabId>('diff');
 	let repoPathInput = $state('');
+	let unlistenRepoChanged: UnlistenFn | null = null;
 
 	function selectTab(id: TabId) {
 		activeTab = id;
@@ -34,8 +37,13 @@
 	}
 
 	async function loadDiff() {
-		if (!repoPathInput.trim()) return;
-		await diffStore.fetchDiff(repoPathInput.trim());
+		const path = repoPathInput.trim();
+		if (!path) return;
+		await diffStore.fetchDiff(path);
+		// Auto-start watcher for the same repo so changes are detected
+		if (!watcherStore.watching || watcherStore.repoPath !== path) {
+			await watcherStore.startWatching(path);
+		}
 	}
 
 	function statusIcon(status: DiffFileStatus): string {
@@ -64,12 +72,18 @@
 		}
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		window.addEventListener('keydown', handleKeydown);
+		// Listen for watcher repo-changed events → scoped diff refresh
+		unlistenRepoChanged = await listen('repo-changed', () => {
+			diffStore.refresh();
+		});
 	});
 
 	onDestroy(() => {
 		window.removeEventListener('keydown', handleKeydown);
+		unlistenRepoChanged?.();
+		unlistenRepoChanged = null;
 	});
 </script>
 
@@ -119,6 +133,13 @@
 								{diffStore.loading ? 'Loading...' : 'Load'}
 							</button>
 						</div>
+
+						{#if watcherStore.watching}
+							<div class="watcher-indicator">
+								<span class="watcher-dot"></span>
+								Watching &mdash; auto-refresh on
+							</div>
+						{/if}
 
 						{#if diffStore.error}
 							<div class="diff-error">{diffStore.error}</div>
@@ -364,6 +385,30 @@
 	.load-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	.watcher-indicator {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2) var(--space-3);
+		font-size: 10px;
+		color: var(--color-diff-added-text);
+		background: var(--color-bg);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.watcher-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--color-diff-added-text);
+		animation: pulse 2s ease-in-out infinite;
+	}
+
+	@keyframes pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.4; }
 	}
 
 	.diff-error {

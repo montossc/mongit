@@ -109,6 +109,12 @@ function createDiffStore() {
 		repoPath = "";
 	}
 
+	/** Re-fetch diff for the current repo (no-op if no repo loaded or already loading). */
+	async function refresh(): Promise<void> {
+		if (!repoPath || loading) return;
+		await fetchDiff(repoPath);
+	}
+
 	return {
 		get files() {
 			return files;
@@ -133,6 +139,7 @@ function createDiffStore() {
 		},
 		fetchDiff,
 		selectFile,
+		refresh,
 		reset,
 	};
 }
