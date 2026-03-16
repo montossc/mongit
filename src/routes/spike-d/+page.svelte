@@ -39,7 +39,13 @@
 	async function loadDiff() {
 		const path = repoPathInput.trim();
 		if (!path) return;
-		await diffStore.fetchDiff(path);
+		const loaded = await diffStore.fetchDiff(path);
+		if (!loaded) {
+			if (watcherStore.watching && watcherStore.repoPath === path) {
+				await watcherStore.stopWatching();
+			}
+			return;
+		}
 		// Auto-start watcher for the same repo so changes are detected
 		if (!watcherStore.watching || watcherStore.repoPath !== path) {
 			await watcherStore.startWatching(path);
@@ -87,6 +93,9 @@
 		window.removeEventListener('keydown', handleKeydown);
 		unlistenRepoChanged?.();
 		unlistenRepoChanged = null;
+		if (watcherStore.watching && watcherStore.repoPath === diffStore.repoPath) {
+			void watcherStore.stopWatching();
+		}
 	});
 </script>
 

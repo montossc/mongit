@@ -41,38 +41,51 @@ function createDiffStore() {
 	let loadingContent = $state(false);
 	let error = $state<string | null>(null);
 	let repoPath = $state("");
+	let diffRequestId = 0; // Guard against stale repo-level diff responses
 	let contentRequestId = 0; // Guard against out-of-order async responses
 
 	/** Fetch the list of changed files for a repository. */
-	async function fetchDiff(path: string): Promise<void> {
+	async function fetchDiff(path: string): Promise<boolean> {
+		diffRequestId += 1;
+		const thisRequest = diffRequestId;
 		loading = true;
 		error = null;
 		repoPath = path;
 
 		try {
-			files = await invoke<DiffFileEntry[]>("get_diff_workdir", { path });
+			const nextFiles = await invoke<DiffFileEntry[]>("get_diff_workdir", { path });
+			if (thisRequest !== diffRequestId || repoPath !== path) {
+				return false;
+			}
 
-			// Auto-select first file if none selected or selection no longer valid
+			files = nextFiles;
+
 			if (files.length > 0) {
 				const stillValid =
 					selectedPath && files.some((f) => f.path === selectedPath);
 				if (!stillValid) {
 					await selectFile(files[0].path);
 				} else {
-					// Re-fetch content for the currently selected file (it may have changed)
 					await fetchContent(selectedPath!);
 				}
 			} else {
 				selectedPath = null;
 				content = null;
 			}
+
+			return true;
 		} catch (e) {
-			error = String(e);
-			files = [];
-			selectedPath = null;
-			content = null;
+			if (thisRequest === diffRequestId && repoPath === path) {
+				error = String(e);
+				files = [];
+				selectedPath = null;
+				content = null;
+			}
+			return false;
 		} finally {
-			loading = false;
+			if (thisRequest === diffRequestId) {
+				loading = false;
+			}
 		}
 	}
 
