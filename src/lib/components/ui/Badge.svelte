@@ -25,7 +25,7 @@
     border-radius: var(--radius-full);
     white-space: nowrap;
     line-height: 1;
-    background: var(--color-bg-hover);
+    background: var(--color-bg-elevated);
     color: var(--color-text-secondary);
   }
 
@@ -45,7 +45,7 @@
   }
 
   .badge.default {
-    background: var(--color-bg-hover);
+    background: var(--color-bg-elevated);
     color: var(--color-text-secondary);
   }
 </style>

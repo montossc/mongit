@@ -7,6 +7,7 @@
 		mono?: boolean;
 		oninput?: (e: Event) => void;
 		onkeydown?: (e: KeyboardEvent) => void;
+		[key: string]: unknown;
 	}
 
 	let {
@@ -17,6 +18,7 @@
 		mono = false,
 		oninput,
 		onkeydown,
+		...restProps
 	}: Props = $props();
 </script>
 
@@ -29,6 +31,7 @@
 	bind:value
 	{oninput}
 	{onkeydown}
+	{...restProps}
 />
 
 <style>

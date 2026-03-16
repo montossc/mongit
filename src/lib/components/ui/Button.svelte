@@ -11,7 +11,7 @@
   }
 
   let {
-    variant = 'primary',
+    variant = 'secondary',
     size = 'default',
     disabled = false,
     type = 'button',
