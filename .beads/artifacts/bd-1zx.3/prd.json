@@ -1,0 +1,126 @@
+{
+	"beadId": "bd-1zx.3",
+	"prdName": "ui-primitives",
+	"tasks": [
+		{
+			"id": "button-1",
+			"category": "functional",
+			"description": "Create Button.svelte with 4 variants (primary, secondary, ghost, danger), 3 sizes (compact, default, prominent), focus ring, hover/disabled states",
+			"steps": [
+				"File exists at src/lib/components/ui/Button.svelte",
+				"Component accepts variant, size, disabled, onclick, children props via $props()",
+				"All colors reference CSS custom properties (no hardcoded hex)",
+				"Focus ring uses --focus-ring-* tokens",
+				"Hover states use var(--transition-fast) timing",
+				"pnpm check passes with 0 errors"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src/lib/components/ui/Button.svelte"]
+			}
+		},
+		{
+			"id": "input-2",
+			"category": "functional",
+			"description": "Create Input.svelte with focus ring, mono font option, placeholder styling, disabled state",
+			"steps": [
+				"File exists at src/lib/components/ui/Input.svelte",
+				"Component accepts value (bindable), placeholder, type, disabled, mono, oninput, onkeydown props",
+				"Focus ring uses --focus-ring-* tokens",
+				"Height uses --size-input token",
+				"pnpm check passes with 0 errors"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src/lib/components/ui/Input.svelte"]
+			}
+		},
+		{
+			"id": "badge-3",
+			"category": "functional",
+			"description": "Create Badge.svelte with 4 semantic variants (branch, tag, remote, default)",
+			"steps": [
+				"File exists at src/lib/components/ui/Badge.svelte",
+				"Component accepts variant and children props",
+				"Pill shape uses --radius-full",
+				"Height uses --size-badge token",
+				"pnpm check passes with 0 errors"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src/lib/components/ui/Badge.svelte"]
+			}
+		},
+		{
+			"id": "panel-4",
+			"category": "functional",
+			"description": "Create Panel.svelte with surface background, optional header snippet, elevation levels",
+			"steps": [
+				"File exists at src/lib/components/ui/Panel.svelte",
+				"Component accepts elevation, padding, header snippet, children snippet",
+				"Surface uses --color-bg-surface, border uses --color-border",
+				"Elevation maps to --elevation-1 through --elevation-4",
+				"pnpm check passes with 0 errors"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src/lib/components/ui/Panel.svelte"]
+			}
+		},
+		{
+			"id": "barrel-5",
+			"category": "functional",
+			"description": "Create barrel export index.ts re-exporting all 4 components",
+			"steps": [
+				"File exists at src/lib/components/ui/index.ts",
+				"Exports Button, Input, Badge, Panel",
+				"pnpm check passes with 0 errors",
+				"pnpm build succeeds"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["button-1", "input-2", "badge-3", "panel-4"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/components/ui/index.ts"]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"CSS tokens in :root at src/app.css",
+			"Svelte 5 runes ($props, $state, $derived) for component APIs",
+			"Scoped <style> blocks referencing CSS custom properties",
+			"Target dir: src/lib/components/ui/"
+		],
+		"keyFiles": [
+			"src/app.css",
+			"design-system/mongit/MASTER.md",
+			"src/routes/+page.svelte"
+		],
+		"nonGoals": [
+			"Refactoring +page.svelte to use new components",
+			"Component tests or storybook",
+			"Complex components (CommandPalette, FileTree)"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-1zx.1", "bd-1zx.2"],
+		"parallel": false,
+		"conflicts_with": [],
+		"blocks": [],
+		"estimated_hours": 3
+	}
+}
