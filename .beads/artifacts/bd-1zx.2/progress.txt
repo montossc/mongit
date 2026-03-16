@@ -1,0 +1,37 @@
+# Progress Log
+
+Bead: bd-1zx.2
+Started: 2026-03-16
+
+## Codebase Patterns
+
+- CSS tokens live in `src/app.css` under `:root`
+- Dark theme is the default (values in `:root`)
+- SvelteKit template at `src/app.html`
+- Svelte 5 runes for state: `$state`, `$derived`, `$effect`
+- SSR disabled (`ssr=false`), all code runs in browser
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
+
+## Task css-1 — PASS
+- Commit: 70b10bc
+- Added [data-theme="light"] and [data-theme="system"] selectors with 10 color overrides
+- Light elevation shadows (0.1/0.15/0.2/0.25)
+- Light scrollbar adjustments
+- pnpm check: 0 errors, pnpm build: success
+
+## Task html-2 — PASS
+- Commit: 4baaf69
+- Synchronous inline <script> in <head> before %sveltekit.head%
+- Reads mongit-theme from localStorage, defaults to system
+- Sets data-theme on <html> before first paint
+- pnpm check: 0 errors, pnpm build: success
+
+## Task store-3 — PASS
+- Commit: 718c2f8
+- Created src/lib/stores/theme.svelte.ts
+- Exports theme ($state), resolvedTheme ($derived), setTheme()
+- matchMedia listener for system mode
+- pnpm check: 0 errors, pnpm build: success

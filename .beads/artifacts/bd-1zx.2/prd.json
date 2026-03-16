@@ -1,0 +1,93 @@
+{
+	"beadId": "bd-1zx.2",
+	"prdName": "theme-switching-baseline",
+	"tasks": [
+		{
+			"id": "css-1",
+			"category": "css",
+			"description": "Add light theme token overrides and system/dark selectors in app.css",
+			"steps": [
+				"src/app.css contains [data-theme=\"light\"] selector with all 10 color token overrides matching MASTER.md light theme values",
+				"src/app.css contains [data-theme=\"system\"] selector with @media (prefers-color-scheme: light) nested rule applying same light overrides",
+				"Light elevation shadows use lower opacity than dark (rgba 0.1/0.15/0.2/0.25 vs 0.3/0.4/0.5/0.6)",
+				"Light scrollbar colors adjusted (track transparent, thumb uses light border color)",
+				"pnpm check passes with 0 errors",
+				"pnpm build succeeds"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/app.css"]
+			}
+		},
+		{
+			"id": "html-2",
+			"category": "html",
+			"description": "Add synchronous theme bootstrap script in app.html to prevent FOUC",
+			"steps": [
+				"src/app.html contains inline <script> in <head> before %sveltekit.head%",
+				"Script reads 'mongit-theme' from localStorage",
+				"Script defaults to 'system' if no preference stored",
+				"Script sets data-theme attribute on <html> element",
+				"Script has no async/defer attributes (synchronous execution)",
+				"pnpm check passes with 0 errors",
+				"pnpm build succeeds"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["css-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/app.html"]
+			}
+		},
+		{
+			"id": "store-3",
+			"category": "store",
+			"description": "Create theme store with Svelte 5 runes, localStorage persistence, and system preference listener",
+			"steps": [
+				"src/lib/stores/theme.svelte.ts exports theme ($state), resolvedTheme ($derived), and setTheme function",
+				"theme accepts 'system' | 'light' | 'dark' values",
+				"resolvedTheme resolves 'system' using matchMedia('(prefers-color-scheme: dark)')",
+				"setTheme persists to localStorage under 'mongit-theme' key",
+				"setTheme updates data-theme attribute on document.documentElement",
+				"Store listens for matchMedia 'change' events when in system mode",
+				"pnpm check passes with 0 errors",
+				"pnpm build succeeds"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["css-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/stores/theme.svelte.ts"]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"CSS tokens in :root at src/app.css",
+			"Svelte 5 runes ($state, $derived, $effect) for state management",
+			"SvelteKit static adapter with ssr=false"
+		],
+		"keyFiles": [
+			"src/app.css",
+			"src/app.html",
+			"design-system/mongit/MASTER.md"
+		],
+		"nonGoals": [
+			"UI controls for theme switching",
+			"Custom themes beyond system/light/dark",
+			"High-contrast themes"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-1zx.1"],
+		"parallel": false,
+		"conflicts_with": [],
+		"blocks": [],
+		"estimated_hours": 2
+	}
+}
