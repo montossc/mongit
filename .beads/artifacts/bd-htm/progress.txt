@@ -5,7 +5,12 @@ Started: 2026-03-16
 
 ## Codebase Patterns
 
-<!-- Consolidate reusable patterns here -->
+- IPC commands use `tokio::task::spawn_blocking` + open-per-call pattern (commands.rs)
+- Watcher uses notify-debouncer-full with 300ms debounce, emits `repo-changed` (void payload)
+- DiffViewer currently renders sample data only — needs real repo integration
+- Git2Repository::diff_workdir() already implemented but not exposed via IPC
+- Svelte 5 runes stores pattern: $state(), $derived, $effect()
+- Test helpers: create_test_repo() in src-tauri/src/git/mod.rs
 
 ---
 
