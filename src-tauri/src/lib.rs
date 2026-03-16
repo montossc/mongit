@@ -16,6 +16,7 @@ pub fn run() {
             commands::get_commit_log,
             commands::get_refs,
             commands::get_diff_workdir,
+            commands::get_file_content_for_diff,
             commands::create_branch,
             commands::switch_branch,
             commands::delete_branch,

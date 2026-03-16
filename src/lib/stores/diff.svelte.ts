@@ -1,0 +1,140 @@
+import { invoke } from "@tauri-apps/api/core";
+
+// ── Types matching Rust serialization ────────────────────────────────────
+
+export interface DiffLineInfo {
+	origin: string; // ' ' | '+' | '-' | '\\'
+	content: string;
+	old_lineno: number | null;
+	new_lineno: number | null;
+}
+
+export interface DiffHunkInfo {
+	old_start: number;
+	old_lines: number;
+	new_start: number;
+	new_lines: number;
+	header: string;
+	lines: DiffLineInfo[];
+}
+
+export type DiffFileStatus = "Added" | "Modified" | "Deleted" | "Renamed";
+
+export interface DiffFileEntry {
+	path: string;
+	status: DiffFileStatus;
+	hunks: DiffHunkInfo[];
+}
+
+export interface FileContentPair {
+	original: string;
+	modified: string;
+}
+
+// ── Store ────────────────────────────────────────────────────────────────
+
+function createDiffStore() {
+	let files = $state<DiffFileEntry[]>([]);
+	let selectedPath = $state<string | null>(null);
+	let content = $state<FileContentPair | null>(null);
+	let loading = $state(false);
+	let loadingContent = $state(false);
+	let error = $state<string | null>(null);
+	let repoPath = $state("");
+
+	/** Fetch the list of changed files for a repository. */
+	async function fetchDiff(path: string): Promise<void> {
+		loading = true;
+		error = null;
+		repoPath = path;
+
+		try {
+			files = await invoke<DiffFileEntry[]>("get_diff_workdir", { path });
+
+			// Auto-select first file if none selected or selection no longer valid
+			if (files.length > 0) {
+				const stillValid =
+					selectedPath && files.some((f) => f.path === selectedPath);
+				if (!stillValid) {
+					await selectFile(files[0].path);
+				} else {
+					// Re-fetch content for the currently selected file (it may have changed)
+					await fetchContent(selectedPath!);
+				}
+			} else {
+				selectedPath = null;
+				content = null;
+			}
+		} catch (e) {
+			error = String(e);
+			files = [];
+			selectedPath = null;
+			content = null;
+		} finally {
+			loading = false;
+		}
+	}
+
+	/** Select a file and fetch its full content for diff rendering. */
+	async function selectFile(path: string): Promise<void> {
+		selectedPath = path;
+		await fetchContent(path);
+	}
+
+	/** Internal: fetch file content pair. */
+	async function fetchContent(filePath: string): Promise<void> {
+		if (!repoPath) return;
+		loadingContent = true;
+		try {
+			content = await invoke<FileContentPair>("get_file_content_for_diff", {
+				path: repoPath,
+				filePath,
+			});
+		} catch (e) {
+			error = String(e);
+			content = null;
+		} finally {
+			loadingContent = false;
+		}
+	}
+
+	/** Reset store to initial state. */
+	function reset(): void {
+		files = [];
+		selectedPath = null;
+		content = null;
+		loading = false;
+		loadingContent = false;
+		error = null;
+		repoPath = "";
+	}
+
+	return {
+		get files() {
+			return files;
+		},
+		get selectedPath() {
+			return selectedPath;
+		},
+		get content() {
+			return content;
+		},
+		get loading() {
+			return loading;
+		},
+		get loadingContent() {
+			return loadingContent;
+		},
+		get error() {
+			return error;
+		},
+		get repoPath() {
+			return repoPath;
+		},
+		fetchDiff,
+		selectFile,
+		reset,
+	};
+}
+
+export const diffStore = createDiffStore();

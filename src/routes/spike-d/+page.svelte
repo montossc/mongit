@@ -4,17 +4,19 @@
 	import MergeEditor from '$lib/components/MergeEditor.svelte';
 	import WatcherMonitor from '$lib/components/WatcherMonitor.svelte';
 	import BenchmarkPanel from '$lib/components/BenchmarkPanel.svelte';
+	import { diffStore, type DiffFileStatus } from '$lib/stores/diff.svelte';
 
 	const tabs = [
 		{ id: 'diff', label: 'Diff Viewer' },
 		{ id: 'merge', label: 'Merge Editor' },
 		{ id: 'watcher', label: 'File Watcher' },
-		{ id: 'benchmarks', label: 'Benchmarks' },
+		{ id: 'benchmarks', label: 'Benchmarks' }
 	] as const;
 
 	type TabId = (typeof tabs)[number]['id'];
 
 	let activeTab = $state<TabId>('diff');
+	let repoPathInput = $state('');
 
 	function selectTab(id: TabId) {
 		activeTab = id;
@@ -28,6 +30,37 @@
 			if (idx < tabs.length) {
 				selectTab(tabs[idx].id);
 			}
+		}
+	}
+
+	async function loadDiff() {
+		if (!repoPathInput.trim()) return;
+		await diffStore.fetchDiff(repoPathInput.trim());
+	}
+
+	function statusIcon(status: DiffFileStatus): string {
+		switch (status) {
+			case 'Added':
+				return 'A';
+			case 'Modified':
+				return 'M';
+			case 'Deleted':
+				return 'D';
+			case 'Renamed':
+				return 'R';
+			default:
+				return '?';
+		}
+	}
+
+	function statusClass(status: DiffFileStatus): string {
+		switch (status) {
+			case 'Added':
+				return 'status-added';
+			case 'Deleted':
+				return 'status-deleted';
+			default:
+				return 'status-modified';
 		}
 	}
 
@@ -45,7 +78,7 @@
 		<div class="header-left">
 			<a href="/" class="back-link">&larr; Back</a>
 			<h1 class="spike-title">Spike D — CodeMirror 6 + File Watcher</h1>
-			<span class="spike-badge">bd-2n2</span>
+			<span class="spike-badge">bd-htm</span>
 		</div>
 	</header>
 
@@ -67,7 +100,70 @@
 	<div class="tab-content">
 		{#if activeTab === 'diff'}
 			<div class="tab-panel visible" role="tabpanel">
-				<DiffViewer />
+				<div class="diff-layout">
+					<!-- Sidebar: repo input + file list -->
+					<aside class="diff-sidebar">
+						<div class="repo-input-group">
+							<input
+								type="text"
+								class="repo-input"
+								placeholder="Repository path..."
+								bind:value={repoPathInput}
+								onkeydown={(e) => e.key === 'Enter' && loadDiff()}
+							/>
+							<button
+								class="load-btn"
+								onclick={loadDiff}
+								disabled={diffStore.loading || !repoPathInput.trim()}
+							>
+								{diffStore.loading ? 'Loading...' : 'Load'}
+							</button>
+						</div>
+
+						{#if diffStore.error}
+							<div class="diff-error">{diffStore.error}</div>
+						{/if}
+
+						{#if diffStore.files.length > 0}
+							<div class="file-list-header">
+								Changed files ({diffStore.files.length})
+							</div>
+							<ul class="file-list">
+								{#each diffStore.files as file}
+									<li>
+										<button
+											class="file-item"
+											class:selected={diffStore.selectedPath === file.path}
+											onclick={() => diffStore.selectFile(file.path)}
+										>
+											<span class="file-status {statusClass(file.status)}"
+												>{statusIcon(file.status)}</span
+											>
+											<span class="file-path">{file.path}</span>
+										</button>
+									</li>
+								{/each}
+							</ul>
+						{:else if !diffStore.loading && diffStore.repoPath}
+							<div class="diff-empty-msg">No changed files</div>
+						{/if}
+					</aside>
+
+					<!-- Main: diff viewer -->
+					<div class="diff-main">
+						{#if diffStore.loadingContent}
+							<div class="diff-loading">Loading diff...</div>
+						{:else if diffStore.content && diffStore.selectedPath}
+							<DiffViewer
+								original={diffStore.content.original}
+								modified={diffStore.content.modified}
+								filename={diffStore.selectedPath}
+							/>
+						{:else}
+							<DiffViewer />
+						{/if}
+					</div>
+				</div>
 			</div>
 		{:else if activeTab === 'merge'}
 			<div class="tab-panel visible" role="tabpanel">
@@ -210,5 +306,157 @@
 
 	.tab-panel.visible {
 		display: block;
+	}
+
+	/* ── Diff layout: sidebar + main ──────────────────────────────── */
+
+	.diff-layout {
+		display: flex;
+		height: 100%;
+	}
+
+	.diff-sidebar {
+		width: 280px;
+		min-width: 200px;
+		border-right: 1px solid var(--color-border);
+		display: flex;
+		flex-direction: column;
+		background: var(--color-bg-surface);
+		overflow-y: auto;
+	}
+
+	.repo-input-group {
+		display: flex;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.repo-input {
+		flex: 1;
+		font-family: var(--font-mono);
+		font-size: 11px;
+		padding: var(--space-2) var(--space-3);
+		background: var(--color-bg);
+		color: var(--color-text-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		outline: none;
+	}
+
+	.repo-input:focus {
+		border-color: var(--color-accent);
+	}
+
+	.load-btn {
+		font-family: var(--font-sans);
+		font-size: 11px;
+		font-weight: 500;
+		padding: var(--space-2) var(--space-3);
+		background: var(--color-accent);
+		color: white;
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.load-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.diff-error {
+		padding: var(--space-3);
+		font-size: 11px;
+		color: var(--color-diff-removed-text);
+		background: var(--color-bg);
+	}
+
+	.file-list-header {
+		padding: var(--space-3);
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--color-text-secondary);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.file-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.file-item {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		width: 100%;
+		padding: var(--space-2) var(--space-3);
+		font-size: 11px;
+		background: transparent;
+		border: none;
+		color: var(--color-text-primary);
+		cursor: pointer;
+		text-align: left;
+		transition: background var(--transition-fast);
+	}
+
+	.file-item:hover {
+		background: var(--color-bg-hover);
+	}
+
+	.file-item.selected {
+		background: var(--color-accent-muted);
+	}
+
+	.file-status {
+		font-family: var(--font-mono);
+		font-size: 10px;
+		font-weight: 700;
+		width: 16px;
+		text-align: center;
+		flex-shrink: 0;
+	}
+
+	.status-added {
+		color: var(--color-diff-added-text);
+	}
+
+	.status-deleted {
+		color: var(--color-diff-removed-text);
+	}
+
+	.status-modified {
+		color: var(--color-accent);
+	}
+
+	.file-path {
+		font-family: var(--font-mono);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.diff-empty-msg {
+		padding: var(--space-4);
+		font-size: 12px;
+		color: var(--color-text-muted);
+		text-align: center;
+	}
+
+	.diff-main {
+		flex: 1;
+		min-width: 0;
+		padding: var(--space-4);
+	}
+
+	.diff-loading {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 100%;
+		color: var(--color-text-muted);
+		font-size: 13px;
 	}
 </style>

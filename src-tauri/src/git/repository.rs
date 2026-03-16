@@ -50,6 +50,13 @@ pub struct DiffFileEntry {
     pub hunks: Vec<DiffHunkInfo>,
 }
 
+/// Pair of file contents for diff rendering: original (from HEAD) and modified (from working tree).
+#[derive(Debug, Clone, Serialize)]
+pub struct FileContentPair {
+    pub original: String,
+    pub modified: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct CommitInfo {
     pub id: String,
@@ -116,6 +123,9 @@ pub trait GitRepository: Send + Sync {
 
     /// Current branch name (None if detached HEAD or unborn).
     fn current_branch(&self) -> Result<Option<String>, GitError>;
+
+    /// Get original (HEAD) and modified (working tree) content for a file.
+    fn file_content_for_diff(&self, file_path: &str) -> Result<FileContentPair, GitError>;
 }
 
 // ── Git2Repository (git2 read implementation) ───────────────────────────
@@ -421,6 +431,35 @@ impl GitRepository for Git2Repository {
         };
 
         Ok(head.shorthand().map(|name| name.to_string()))
+    }
+
+    fn file_content_for_diff(&self, file_path: &str) -> Result<FileContentPair, GitError> {
+        let repo = self.repo()?;
+
+        // Read modified content from working directory
+        let full_path = self.path.join(file_path);
+        let modified = if full_path.exists() {
+            std::fs::read_to_string(&full_path).unwrap_or_default()
+        } else {
+            String::new() // Deleted file
+        };
+
+        // Read original content from HEAD tree
+        let original = match repo.head() {
+            Ok(head) => {
+                let tree = head.peel_to_tree()?;
+                match tree.get_path(Path::new(file_path)) {
+                    Ok(entry) => {
+                        let blob = repo.find_blob(entry.id())?;
+                        String::from_utf8_lossy(blob.content()).to_string()
+                    }
+                    Err(_) => String::new(), // New/untracked file
+                }
+            }
+            Err(_) => String::new(), // No HEAD (empty repo)
+        };
+
+        Ok(FileContentPair { original, modified })
     }
 }
 
