@@ -1,0 +1,117 @@
+{
+	"beadId": "bd-htm",
+	"prdName": "spike-d-diff-watcher",
+	"tasks": [
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"description": "Expose diff_workdir() through Tauri IPC. Add command that wraps Git2Repository::diff_workdir() and register it.",
+			"steps": [
+				"cargo check passes in src-tauri/",
+				"Rust tests around diff retrieval pass (cargo test diff_workdir --lib)",
+				"Invalid path returns structured error, not panic"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src-tauri/src/commands.rs",
+					"src-tauri/src/lib.rs",
+					"src-tauri/src/git/repository.rs"
+				]
+			}
+		},
+		{
+			"id": "backend-2",
+			"category": "backend",
+			"description": "Preserve watcher correctness under repo switches and event bursts. Harden lifecycle for start/stop/replacement.",
+			"steps": [
+				"Watcher tests pass (cargo test watcher --lib)",
+				"Replacement and stop behavior verified",
+				"Filtered paths still behave correctly"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src-tauri/src/watcher.rs",
+					"src/lib/stores/watcher.svelte.ts"
+				]
+			}
+		},
+		{
+			"id": "frontend-3",
+			"category": "frontend",
+			"description": "Load real diff entries from IPC, render changed-file list, and show selected file diff in DiffViewer.",
+			"steps": [
+				"pnpm check passes (0 errors)",
+				"Empty/loading/error states present",
+				"Selected file updates diff view"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["backend-1", "backend-2"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/spike-d/+page.svelte",
+					"src/lib/components/DiffViewer.svelte"
+				]
+			}
+		},
+		{
+			"id": "integration-4",
+			"category": "integration",
+			"description": "Connect repo-changed watcher events to scoped diff/status reload. External edits should refresh visible diff without full-app reload within ~500ms.",
+			"steps": [
+				"External edit refreshes visible diff without full-app reload",
+				"End-to-end update stays within ~500ms",
+				"pnpm check passes (0 errors)"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["backend-1", "backend-2", "frontend-3"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/stores/watcher.svelte.ts",
+					"src/routes/spike-d/+page.svelte"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Tauri IPC: #[tauri::command] in commands.rs, invoke() from frontend",
+			"Git operations: open-per-call pattern (git2::Repository not Send+Sync)",
+			"Watcher: notify + debouncer in watcher.rs, events via Tauri app_handle",
+			"Frontend stores: Svelte 5 runes in .svelte.ts files"
+		],
+		"keyFiles": [
+			"src-tauri/src/commands.rs",
+			"src-tauri/src/git/repository.rs",
+			"src-tauri/src/watcher.rs",
+			"src/lib/stores/watcher.svelte.ts",
+			"src/lib/components/DiffViewer.svelte",
+			"src/routes/spike-d/+page.svelte"
+		],
+		"nonGoals": [
+			"Line-level or hunk-level staging",
+			"Conflict resolution workflow",
+			"Full home/workspace shell integration",
+			"Multi-repo watching",
+			"Full production changes workspace UX"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": [],
+		"parallel": true,
+		"conflicts_with": [],
+		"blocks": ["bd-20d", "bd-3gr", "bd-egw"],
+		"estimated_hours": 6
+	}
+}

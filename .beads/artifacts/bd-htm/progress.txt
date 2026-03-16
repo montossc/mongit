@@ -1,0 +1,12 @@
+# Progress Log
+
+Bead: bd-htm
+Started: 2026-03-16
+
+## Codebase Patterns
+
+<!-- Consolidate reusable patterns here -->
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
