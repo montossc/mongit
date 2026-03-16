@@ -1,0 +1,28 @@
+# Progress Log
+
+Bead: bd-1zx.3
+Started: 2026-03-16
+
+## Codebase Patterns
+
+- Svelte 5 runes: `$props()`, `$state`, `$derived`, `$effect`
+- CSS tokens referenced via `var(--token-name)` in scoped `<style>` blocks
+- Existing ad-hoc button styles in +page.svelte lines 322-375
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
+
+## Wave 1 — Components (de8fa32)
+- button-1: PASS — Button.svelte (4 variants, 3 sizes, focus ring)
+- input-2: PASS — Input.svelte (bindable value, mono font, focus ring)
+- badge-3: PASS — Badge.svelte (4 semantic variants, pill shape)
+- panel-4: PASS — Panel.svelte (surface bg, header snippet, elevation 0-4)
+
+## Wave 2 — Barrel Export (7859a97)
+- barrel-5: PASS — index.ts re-exports all 4 components
+
+## Verification
+- pnpm check: 0 errors
+- pnpm build: success
+- cargo check: success
