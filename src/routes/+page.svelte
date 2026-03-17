@@ -23,12 +23,24 @@
 	let isTauri = $state(false);
 	let commitCount = $state(0);
 	let syntheticCount = $state(1000);
+	let unlistenRepoChanged: (() => void) | undefined;
 
 	onMount(() => {
 		isTauri = '__TAURI_INTERNALS__' in window;
 		if (isTauri) {
 			repoPath = '.';
 		}
+
+		async function setupRepoChangedListener() {
+			if (!isTauri) return;
+			const { listen } = await import('@tauri-apps/api/event');
+			unlistenRepoChanged = await listen<void>('repo-changed', () => {
+				if (!repoPath.trim()) return;
+				void loadRepo();
+			});
+		}
+
+		void setupRepoChangedListener();
 
 		function handleGlobalKeydown(e: KeyboardEvent) {
 			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
@@ -38,7 +50,10 @@
 		}
 
 		window.addEventListener('keydown', handleGlobalKeydown);
-		return () => window.removeEventListener('keydown', handleGlobalKeydown);
+		return () => {
+			window.removeEventListener('keydown', handleGlobalKeydown);
+			unlistenRepoChanged?.();
+		};
 	});
 
 	async function loadRepo() {
