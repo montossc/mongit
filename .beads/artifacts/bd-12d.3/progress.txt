@@ -25,7 +25,7 @@ Started: 2026-03-17
 
 ## 2026-03-17 — benchmark-1
 - status: complete
-- commit: pending (this task commit)
+- commit: ac0b11e
 - files:
   - scripts/perf-bench.ts
   - .beads/artifacts/bd-12d/progress.txt
@@ -34,4 +34,4 @@ Started: 2026-03-17
 - evidence:
   - `npx tsx scripts/perf-bench.ts` printed machine-readable benchmark snapshot JSON
   - baseline refresh appended to `.beads/artifacts/bd-12d/progress.txt`
-  - full verification pending before commit
+  - full verification passed before commit (`npx tsx scripts/perf-bench.ts`, `pnpm check`, `pnpm build`, `cargo check`)
