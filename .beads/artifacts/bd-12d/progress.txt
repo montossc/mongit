@@ -1,0 +1,88 @@
+# Spike B — Canvas Commit Graph Engine: Verification Evidence
+
+## Automated Benchmark Results
+
+```text
+========================================================================
+  mongit — Commit Graph Performance Benchmark
+========================================================================
+
+PRD Targets:
+  Layout (10k):  < 100ms
+  Hit test:      < 1ms
+  Memory (10k):  < 50MB JS heap
+
+Warming up...
+
+Benchmarking 1,000 commits... done (1.3ms)
+Benchmarking 5,000 commits... done (6.8ms)
+Benchmarking 10,000 commits... done (12.3ms)
+Benchmarking 25,000 commits... done (10.6ms)
+Benchmarking 50,000 commits... done (20.2ms)
+Benchmarking 100,000 commits... done (11.6ms)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+   Commits   Branches   Gen (ms)  Layout (ms)    Lanes   Segments   HitTest (ms)   Heap (MB)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+     1,000          5        0.7        1.3 ✓        5      1,074       0.0000 ✓       8.9 ✓
+     5,000          8        1.6        6.8 ✓        8      5,387       0.0000 ✓      14.7 ✓
+    10,000         10        1.3       12.3 ✓       10     10,704       0.0000 ✓      33.3 ✓
+    25,000         15       16.6       10.6         15     10,735       0.0000 ✓      29.4  
+    50,000         20       44.3       20.2         20     10,741       0.0000 ✓      46.8  
+   100,000         25      159.7       11.6         25     10,727       0.0000 ✓      45.8  
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+══════════════════════════════════════════════════
+  10k Commit Validation (PRD R7 Targets)
+══════════════════════════════════════════════════
+  ✓ PASS  Layout time < 100ms       12.3ms
+  ✓ PASS  Hit test < 1ms            0.0000ms
+  ✓ PASS  JS heap < 50MB            33.3MB
+  ✓ PASS  Lane count < 50           10
+
+  Overall: ✓ ALL TARGETS MET
+
+  Manual verification needed (in-app):
+  [ ] Sustained FPS >= 55 during continuous scroll (toggle FPS: Cmd+Shift+P)
+  [ ] Render frame < 8ms (check FPS overlay frame time)
+  [ ] First paint < 500ms (time from click to first frame)
+  [ ] No visual glitches during rapid scroll
+  [ ] Retina rendering is crisp (sharp lines/text at 2x)
+  [ ] Correct topology (branches/merges render properly)
+
+Done.
+```
+
+## Determinism Check Results
+
+```text
+PASS: assignLanes() is deterministic for the fixed topology fixture.
+      commits=11, refs=7, runs=3
+      laneCount=4, segments=13
+PASS: renderer viewport regressions hold for visible-range, edge-culling, and hit-test math.
+```
+
+## Route Metrics Availability
+
+- [x] Commit count: displayed in toolbar
+- [x] Lane count: displayed in toolbar
+- [x] Layout time: displayed in toolbar
+- [x] FPS / Frame time: FpsOverlay (Cmd+Shift+P)
+- [x] Visible rows: FpsOverlay
+- [x] Scroll row: FpsOverlay
+
+## Manual Validation Checklist (requires `pnpm tauri dev`)
+
+- [ ] Open /spike-b in running app
+- [ ] Load synthetic data — graph renders
+- [ ] Load real repository (10k+ commits) — graph renders
+- [ ] Repeat real repo load — layout remains stable
+- [ ] Sustained scroll — FPS stays above 55
+- [ ] No blank flashes during rapid scroll
+- [ ] HiDPI rendering is crisp
+- [ ] Click selection works correctly
+- [ ] Hover highlights correct row
+- [ ] Right-click context menu targets correct commit
+- [ ] Keyboard navigation: ↑ ↓ Home End PageUp PageDown Enter Escape
+- [ ] Commit detail panel shows selected commit info
+- [ ] FPS overlay toggles with button and Cmd+Shift+P
