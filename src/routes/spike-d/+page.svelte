@@ -5,7 +5,7 @@
 	import WatcherMonitor from '$lib/components/WatcherMonitor.svelte';
 	import BenchmarkPanel from '$lib/components/BenchmarkPanel.svelte';
 
-	// ── Sample diff data (moved from DiffViewer — callers own state) ─────
+	// ── Sample diff data (callers own state, not DiffViewer) ────────────
 
 	const SAMPLE_FILE_NAME = 'src/lib/utils/build-graph-layout.ts';
 
@@ -135,12 +135,32 @@ export function buildGraphLayout(nodes: Node[]): GraphLayout {
 	return { lanes, positions, maxLane, laneWidth: LANE_WIDTH };
 }`;
 
-	const diffState: DiffViewerState = {
-		kind: 'ready',
-		original: SAMPLE_ORIGINAL,
-		modified: SAMPLE_MODIFIED,
-		filename: SAMPLE_FILE_NAME
-	};
+	// ── Shell state harness ────────────────────────────────────────────
+
+	const shellStates = ['loading', 'empty', 'error', 'ready'] as const;
+	type ShellStateKind = (typeof shellStates)[number];
+
+	let activeShellState = $state<ShellStateKind>('ready');
+
+	const diffView = $derived.by<DiffViewerState>(() => {
+		switch (activeShellState) {
+			case 'loading':
+				return { kind: 'loading' };
+			case 'empty':
+				return { kind: 'empty', message: 'No working tree changes detected' };
+			case 'error':
+				return { kind: 'error', message: 'Failed to parse diff: invalid hunk header at line 42' };
+			case 'ready':
+				return {
+					kind: 'ready',
+					original: SAMPLE_ORIGINAL,
+					modified: SAMPLE_MODIFIED,
+					filename: SAMPLE_FILE_NAME
+				};
+		}
+	});
+
+	// ── Tabs ────────────────────────────────────────────────────────────
 
 	const tabs = [
 		{ id: 'diff', label: 'Diff Viewer' },
@@ -204,7 +224,23 @@ export function buildGraphLayout(nodes: Node[]): GraphLayout {
 	<div class="tab-content">
 		{#if activeTab === 'diff'}
 			<div class="tab-panel visible" role="tabpanel">
-				<DiffViewer view={diffState} />
+				<div class="shell-harness">
+					<div class="state-selector">
+						<span class="state-selector-label">Shell state:</span>
+						{#each shellStates as kind}
+							<button
+								class="state-btn"
+								class:active={activeShellState === kind}
+								onclick={() => (activeShellState = kind)}
+							>
+								{kind}
+							</button>
+						{/each}
+					</div>
+					<div class="diff-area">
+						<DiffViewer view={diffView} />
+					</div>
+				</div>
 			</div>
 		{:else if activeTab === 'merge'}
 			<div class="tab-panel visible" role="tabpanel">
@@ -347,5 +383,64 @@ export function buildGraphLayout(nodes: Node[]): GraphLayout {
 
 	.tab-panel.visible {
 		display: block;
+	}
+
+	/* Shell state harness */
+	.shell-harness {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		gap: 0;
+	}
+
+	.state-selector {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-4);
+		background: var(--color-bg-elevated);
+		border-bottom: 1px solid var(--color-border);
+		flex-shrink: 0;
+	}
+
+	.state-selector-label {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.state-btn {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		color: var(--color-text-secondary);
+		background: var(--color-bg-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: var(--space-1) var(--space-3);
+		cursor: pointer;
+		transition:
+			color var(--transition-fast),
+			background var(--transition-fast),
+			border-color var(--transition-fast);
+	}
+
+	.state-btn:hover {
+		color: var(--color-text-primary);
+		background: var(--color-bg-hover);
+	}
+
+	.state-btn.active {
+		color: var(--color-accent);
+		background: var(--color-accent-muted);
+		border-color: var(--color-accent);
+	}
+
+	.diff-area {
+		flex: 1;
+		min-height: 0;
+		overflow: auto;
+		padding: var(--space-4);
 	}
 </style>
