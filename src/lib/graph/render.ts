@@ -42,7 +42,7 @@ interface VisibleRange {
 	last: number;
 }
 
-const MAX_DRAW_COORDINATE = 1_000_000;
+const MAX_DRAW_COORDINATE = 10_000_000;
 const COMMIT_TEXT_FONT = `400 ${FONT_SIZE}px var(--font-sans, -apple-system, system-ui, sans-serif)`;
 
 function isFiniteCoordinate(value: number): boolean {
