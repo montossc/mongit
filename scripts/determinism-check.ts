@@ -16,6 +16,10 @@ import {
 	ROW_HEIGHT,
 	segmentIntersectsVisibleRows,
 	TEXT_PADDING_LEFT,
+	REF_BADGE_CHAR_WIDTH_ESTIMATE,
+	REF_BADGE_MIN_TEXT_WIDTH,
+	REF_LABEL_GAP,
+	estimateRefBadgeWidth,
 } from "../src/lib/graph/render";
 import type {
 	CommitData,
@@ -337,7 +341,7 @@ function runDeterminismCheck(): void {
 		createDeterministicFixture().commits,
 		createDeterministicFixture().refs,
 	);
-	runHitTestRegression(compositeLayout);
+	runRefBadgeGeometryRegression();
 	console.log(
 		"PASS: renderer viewport regressions hold for visible-range, edge-culling, and hit-test math.",
 	);
@@ -376,6 +380,32 @@ function runVisibleRangeRegression(): void {
 	assert(
 		empty.first === 0 && empty.last === -1,
 		`empty range expected {0,-1}, got {${empty.first},${empty.last}}`,
+	);
+
+	const negativeScroll = getVisibleRange(totalRows, -500, canvasHeight);
+	assert(
+		negativeScroll.first === 0,
+		`negative scroll should clamp first to 0, got ${negativeScroll.first}`,
+	);
+	assert(
+		negativeScroll.last === top.last,
+		`negative scroll should match top viewport last (${top.last}), got ${negativeScroll.last}`,
+	);
+
+	const invalidScroll = getVisibleRange(totalRows, Number.NaN, canvasHeight);
+	assert(
+		invalidScroll.first === 0 && invalidScroll.last === top.last,
+		`NaN scroll should fallback to top viewport {0,${top.last}}, got {${invalidScroll.first},${invalidScroll.last}}`,
+	);
+
+	const invalidHeight = getVisibleRange(totalRows, middleScrollTop, Number.NaN);
+	assert(
+		invalidHeight.first === Math.max(0, 5 - 5),
+		`NaN height first expected 0, got ${invalidHeight.first}`,
+	);
+	assert(
+		invalidHeight.last === Math.min(totalRows - 1, 5 + 5),
+		`NaN height last expected 10, got ${invalidHeight.last}`,
 	);
 }
 
@@ -417,6 +447,57 @@ function runEdgeCullingRegression(): void {
 		!segmentIntersectsVisibleRows(belowSegment, visible),
 		"segment entirely below viewport should be culled",
 	);
+}
+
+function runRefBadgeGeometryRegression(): void {
+	const headRef: RefData = { name: "HEAD", ref_type: "Head", commit_id: "c1" };
+	const branchRef: RefData = {
+		name: "feature/very-long-branch-name",
+		ref_type: "LocalBranch",
+		commit_id: "c1",
+	};
+
+	const measuredHead = estimateRefBadgeWidth(headRef, () => 26);
+	const measuredBranch = estimateRefBadgeWidth(branchRef, () => 100);
+	assert(
+		measuredHead === Math.ceil(26 + 7 * 2),
+		`head measured badge width expected 40, got ${measuredHead}`,
+	);
+	assert(
+		measuredBranch === Math.ceil(100 + 6 * 2),
+		`branch measured badge width expected 112, got ${measuredBranch}`,
+	);
+
+	const fallbackHead = estimateRefBadgeWidth({
+		name: "H",
+		ref_type: "Head",
+		commit_id: "c1",
+	});
+	const fallbackBranch = estimateRefBadgeWidth({
+		name: "ab",
+		ref_type: "Tag",
+		commit_id: "c1",
+	});
+
+	const expectedHeadFallback = Math.ceil(
+		Math.max(REF_BADGE_MIN_TEXT_WIDTH, "H".length * REF_BADGE_CHAR_WIDTH_ESTIMATE) +
+			7 * 2,
+	);
+	const expectedBranchFallback = Math.ceil(
+		Math.max(REF_BADGE_MIN_TEXT_WIDTH, "ab".length * REF_BADGE_CHAR_WIDTH_ESTIMATE) +
+			6 * 2,
+	);
+
+	assert(
+		fallbackHead === expectedHeadFallback,
+		`fallback head badge width expected ${expectedHeadFallback}, got ${fallbackHead}`,
+	);
+	assert(
+		fallbackBranch === expectedBranchFallback,
+		`fallback branch badge width expected ${expectedBranchFallback}, got ${fallbackBranch}`,
+	);
+
+	assert(REF_LABEL_GAP === 6, `REF_LABEL_GAP expected 6, got ${REF_LABEL_GAP}`);
 }
 
 function runHitTestRegression(layout: LayoutResult): void {

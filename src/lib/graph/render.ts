@@ -9,6 +9,12 @@ export const FONT_SIZE = 12;
 
 const VISIBLE_BUFFER_ROWS = 5;
 
+export const REF_LABEL_GAP = 6;
+export const REF_BADGE_MIN_TEXT_WIDTH = 24;
+export const REF_BADGE_CHAR_WIDTH_ESTIMATE = 7;
+export const REF_BADGE_PADDING_X_DEFAULT = 6;
+export const REF_BADGE_PADDING_X_HEAD = 7;
+
 export interface GraphTheme {
 	colors: string[];
 	bgColor: string;
@@ -196,8 +202,13 @@ export function getVisibleRange(
 		return { first: 0, last: -1 };
 	}
 
-	const firstVisible = Math.floor(scrollTop / ROW_HEIGHT);
-	const lastVisible = Math.ceil((scrollTop + canvasHeight) / ROW_HEIGHT);
+	const safeScrollTop = Number.isFinite(scrollTop) ? Math.max(0, scrollTop) : 0;
+	const safeCanvasHeight = Number.isFinite(canvasHeight)
+		? Math.max(0, canvasHeight)
+		: 0;
+
+	const firstVisible = Math.floor(safeScrollTop / ROW_HEIGHT);
+	const lastVisible = Math.ceil((safeScrollTop + safeCanvasHeight) / ROW_HEIGHT);
 
 	return {
 		first: Math.max(0, firstVisible - VISIBLE_BUFFER_ROWS),
@@ -394,6 +405,27 @@ function drawNodes(
 	}
 }
 
+export function estimateRefBadgeWidth(
+	ref: RefData,
+	measureText?: (text: string, isHead: boolean) => number,
+): number {
+	const isHead = ref.ref_type === "Head";
+	const paddingX = isHead
+		? REF_BADGE_PADDING_X_HEAD
+		: REF_BADGE_PADDING_X_DEFAULT;
+
+	const measuredTextWidth = measureText?.(ref.name, isHead);
+	const textWidth =
+		typeof measuredTextWidth === "number"
+			? measuredTextWidth
+			: Math.max(
+					REF_BADGE_MIN_TEXT_WIDTH,
+					ref.name.length * REF_BADGE_CHAR_WIDTH_ESTIMATE,
+				);
+
+	return Math.ceil(textWidth + paddingX * 2);
+}
+
 function drawRefLabels(
 	ctx: CanvasRenderingContext2D,
 	nodes: CommitNode[],
@@ -405,11 +437,23 @@ function drawRefLabels(
 	const badgeFont = `11px ${theme.fontMono}`;
 	const regularBadgeFont = `500 ${badgeFont}`;
 	const headBadgeFont = `700 ${badgeFont}`;
-	const rowSpacing = 6;
 	const xStart = graphTextStartX - 4;
 	ctx.textAlign = "left";
 	ctx.textBaseline = "middle";
 	let currentFont = "";
+
+	const setBadgeFont = (isHead: boolean): void => {
+		const next = isHead ? headBadgeFont : regularBadgeFont;
+		if (next !== currentFont) {
+			ctx.font = next;
+			currentFont = next;
+		}
+	};
+
+	const measureBadgeText = (text: string, isHead: boolean): number => {
+		setBadgeFont(isHead);
+		return ctx.measureText(text).width;
+	};
 
 	for (let row = visible.first; row <= visible.last; row++) {
 		const node = nodes[row];
@@ -420,18 +464,12 @@ function drawRefLabels(
 
 		for (const ref of node.refs) {
 			const isHead = ref.ref_type === "Head";
-			const paddingX = isHead ? 7 : 6;
+			const badgeWidth = estimateRefBadgeWidth(ref, measureBadgeText);
 			const height = 16;
-
-			const font = isHead ? headBadgeFont : regularBadgeFont;
-			if (font !== currentFont) {
-				ctx.font = font;
-				currentFont = font;
-			}
-			const text = ref.name;
-			const textWidth = ctx.measureText(text).width;
-			const badgeWidth = Math.ceil(textWidth + paddingX * 2);
 			const y = yCenter - height / 2;
+			const paddingX = isHead
+				? REF_BADGE_PADDING_X_HEAD
+				: REF_BADGE_PADDING_X_DEFAULT;
 
 			const style = getRefStyle(ref, theme);
 			roundedRectPath(ctx, cursorX, y, badgeWidth, height, 4);
@@ -442,10 +480,11 @@ function drawRefLabels(
 			ctx.lineWidth = isHead ? 1.5 : 1;
 			ctx.stroke();
 
+			setBadgeFont(isHead);
 			ctx.fillStyle = style.text;
-			ctx.fillText(text, cursorX + paddingX, yCenter + 0.5);
+			ctx.fillText(ref.name, cursorX + paddingX, yCenter + 0.5);
 
-			cursorX += badgeWidth + rowSpacing;
+			cursorX += badgeWidth + REF_LABEL_GAP;
 		}
 	}
 }
