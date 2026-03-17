@@ -24,6 +24,8 @@
 	let commitCount = $state(0);
 	let syntheticCount = $state(1000);
 	let unlistenRepoChanged: (() => void) | undefined;
+	let pendingRepoRefresh = $state(false);
+	let lastLoadedRepoPath = $state('');
 
 	onMount(() => {
 		isTauri = '__TAURI_INTERNALS__' in window;
@@ -35,7 +37,13 @@
 			if (!isTauri) return;
 			const { listen } = await import('@tauri-apps/api/event');
 			unlistenRepoChanged = await listen<void>('repo-changed', () => {
+				if (!isTauri) return;
 				if (!repoPath.trim()) return;
+				if (lastLoadedRepoPath !== repoPath.trim()) return;
+				if (loading) {
+					pendingRepoRefresh = true;
+					return;
+				}
 				void loadRepo();
 			});
 		}
@@ -58,22 +66,19 @@
 
 	async function loadRepo() {
 		if (!repoPath.trim()) return;
+		if (!isTauri) return;
 		error = null;
+		const currentPath = repoPath.trim();
 		loading = true;
 
 		try {
-			if (!isTauri) {
-				error = 'Tauri IPC not available — use synthetic data for testing.';
-				loading = false;
-				return;
-			}
-
 			const { invoke } = await import('@tauri-apps/api/core');
 			const [commits, refs] = await Promise.all([
-				invoke<CommitData[]>('get_commit_log', { path: repoPath, max_count: 10000 }),
-				invoke<RefData[]>('get_refs', { path: repoPath })
+				invoke<CommitData[]>('get_commit_log', { path: currentPath, max_count: 10000 }),
+				invoke<RefData[]>('get_refs', { path: currentPath })
 			]);
 
+			lastLoadedRepoPath = currentPath;
 			commitCount = commits.length;
 			layout = assignLanes(commits, refs);
 			selectedNode = null;
@@ -82,12 +87,17 @@
 			layout = null;
 		} finally {
 			loading = false;
+			if (pendingRepoRefresh) {
+				pendingRepoRefresh = false;
+				void loadRepo();
+			}
 		}
 	}
 
 	function loadSyntheticData() {
 		error = null;
 		loading = true;
+		lastLoadedRepoPath = '';
 
 		try {
 			const commits = generateSyntheticCommits(syntheticCount, 5);
