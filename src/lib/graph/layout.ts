@@ -21,10 +21,28 @@ function nowMs(): number {
 /**
  * Assign lanes to commits using a greedy first-parent algorithm.
  *
- * Determinism contract:
- * - For identical ordered `commits` + `refs` inputs, output is stable across runs.
- * - Lane assignment, node colors, and segment topology are deterministic.
- * - This relies on deterministic iteration/insertion order and no random sources.
+ * ## Determinism Contract
+ *
+ * For identical ordered `commits` + `refs` inputs, output is **bitwise stable**
+ * across any number of repeated calls within the same process or across runs:
+ *
+ * 1. **Lane assignment** — each commit maps to the same lane index.
+ * 2. **Color assignment** — each lane receives the same color index;
+ *    color counter advances in insertion order only.
+ * 3. **Segment topology** — identical `fromId/toId/fromLane/toLane/fromRow/toRow`
+ *    and `isMerge` flag on every edge.
+ * 4. **Ref attachment** — `node.refs[]` preserves the caller-provided `refs` order
+ *    (grouped by commit, insertion-stable within each commit).
+ * 5. **Lane reuse** — freed lanes are recycled lowest-index-first; no random or
+ *    time-dependent source influences selection.
+ *
+ * These guarantees hold because the algorithm:
+ * - Iterates `commits` in caller-provided order (topological, newest-first).
+ * - Uses deterministic Maps with insertion-order iteration.
+ * - Contains no `Math.random()`, `Date.now()`, or async sources.
+ *
+ * Breaking any of these invariants is a regression — `scripts/determinism-check.ts`
+ * validates them on every run.
  *
  * Strategy:
  * - First parent of a commit inherits its lane (straight lines for main branch)

@@ -203,37 +203,141 @@ function formatDiff(
 	return "unknown mismatch";
 }
 
-function runDeterminismCheck(): void {
-	const { commits, refs } = createDeterministicFixture();
-	const fixtureLayout = assignLanes(commits, refs);
-	const runs = [
-		createComparableSnapshot(fixtureLayout),
-		createComparableSnapshot(assignLanes(commits, refs)),
-		createComparableSnapshot(assignLanes(commits, refs)),
-	];
+// ── Isolated topology fixtures ──
 
-	for (let i = 1; i < runs.length; i++) {
-		const baseline = runs[0];
-		const candidate = runs[i];
-		if (JSON.stringify(baseline) !== JSON.stringify(candidate)) {
-			const diff = formatDiff(baseline, candidate);
+/** Linear chain: A → B → C → D (no branches, no merges) */
+function linearFixture(): { commits: CommitData[]; refs: RefData[] } {
+	return {
+		commits: [
+			{ id: 'L4', message: 'D', author_name: 'T', author_email: 't@t', time: 4, parent_ids: ['L3'] },
+			{ id: 'L3', message: 'C', author_name: 'T', author_email: 't@t', time: 3, parent_ids: ['L2'] },
+			{ id: 'L2', message: 'B', author_name: 'T', author_email: 't@t', time: 2, parent_ids: ['L1'] },
+			{ id: 'L1', message: 'A', author_name: 'T', author_email: 't@t', time: 1, parent_ids: [] },
+		],
+		refs: [{ name: 'main', ref_type: 'LocalBranch', commit_id: 'L4' }],
+	};
+}
+
+/** Fan-out: root → {B1, B2, B3} (one parent, three children) */
+function fanOutFixture(): { commits: CommitData[]; refs: RefData[] } {
+	return {
+		commits: [
+			{ id: 'FO-B3', message: 'B3', author_name: 'T', author_email: 't@t', time: 4, parent_ids: ['FO-R'] },
+			{ id: 'FO-B2', message: 'B2', author_name: 'T', author_email: 't@t', time: 3, parent_ids: ['FO-R'] },
+			{ id: 'FO-B1', message: 'B1', author_name: 'T', author_email: 't@t', time: 2, parent_ids: ['FO-R'] },
+			{ id: 'FO-R', message: 'Root', author_name: 'T', author_email: 't@t', time: 1, parent_ids: [] },
+		],
+		refs: [
+			{ name: 'b1', ref_type: 'LocalBranch', commit_id: 'FO-B1' },
+			{ name: 'b2', ref_type: 'LocalBranch', commit_id: 'FO-B2' },
+			{ name: 'b3', ref_type: 'LocalBranch', commit_id: 'FO-B3' },
+		],
+	};
+}
+
+/** Fan-in merge: {A, B, C} → M (three branches merge into one) */
+function fanInFixture(): { commits: CommitData[]; refs: RefData[] } {
+	return {
+		commits: [
+			{ id: 'FI-M', message: 'Merge', author_name: 'T', author_email: 't@t', time: 5, parent_ids: ['FI-A', 'FI-B', 'FI-C'] },
+			{ id: 'FI-A', message: 'A', author_name: 'T', author_email: 't@t', time: 4, parent_ids: ['FI-R'] },
+			{ id: 'FI-B', message: 'B', author_name: 'T', author_email: 't@t', time: 3, parent_ids: ['FI-R'] },
+			{ id: 'FI-C', message: 'C', author_name: 'T', author_email: 't@t', time: 2, parent_ids: ['FI-R'] },
+			{ id: 'FI-R', message: 'Root', author_name: 'T', author_email: 't@t', time: 1, parent_ids: [] },
+		],
+		refs: [{ name: 'main', ref_type: 'LocalBranch', commit_id: 'FI-M' }],
+	};
+}
+
+/** Octopus merge: M has 4 parents (stress multi-parent handling) */
+function octopusFixture(): { commits: CommitData[]; refs: RefData[] } {
+	return {
+		commits: [
+			{ id: 'OC-M', message: 'Octopus', author_name: 'T', author_email: 't@t', time: 6, parent_ids: ['OC-1', 'OC-2', 'OC-3', 'OC-4'] },
+			{ id: 'OC-1', message: 'P1', author_name: 'T', author_email: 't@t', time: 5, parent_ids: ['OC-R'] },
+			{ id: 'OC-2', message: 'P2', author_name: 'T', author_email: 't@t', time: 4, parent_ids: ['OC-R'] },
+			{ id: 'OC-3', message: 'P3', author_name: 'T', author_email: 't@t', time: 3, parent_ids: ['OC-R'] },
+			{ id: 'OC-4', message: 'P4', author_name: 'T', author_email: 't@t', time: 2, parent_ids: ['OC-R'] },
+			{ id: 'OC-R', message: 'Root', author_name: 'T', author_email: 't@t', time: 1, parent_ids: [] },
+		],
+		refs: [{ name: 'main', ref_type: 'LocalBranch', commit_id: 'OC-M' }],
+	};
+}
+
+/** Empty input: no commits, no refs */
+function emptyFixture(): { commits: CommitData[]; refs: RefData[] } {
+	return { commits: [], refs: [] };
+}
+
+/** Single commit with multiple refs */
+function singleCommitFixture(): { commits: CommitData[]; refs: RefData[] } {
+	return {
+		commits: [
+			{ id: 'S1', message: 'Init', author_name: 'T', author_email: 't@t', time: 1, parent_ids: [] },
+		],
+		refs: [
+			{ name: 'HEAD', ref_type: 'Head', commit_id: 'S1' },
+			{ name: 'main', ref_type: 'LocalBranch', commit_id: 'S1' },
+			{ name: 'v1.0', ref_type: 'Tag', commit_id: 'S1' },
+		],
+	};
+}
+
+// ── Core determinism engine ──
+
+const DETERMINISM_RUNS = 10; // Repeat count for confidence
+
+function assertDeterministic(
+	name: string,
+	commits: CommitData[],
+	refs: RefData[],
+): void {
+	const snapshots = [];
+	for (let i = 0; i < DETERMINISM_RUNS; i++) {
+		snapshots.push(createComparableSnapshot(assignLanes(commits, refs)));
+	}
+	const baseline = JSON.stringify(snapshots[0]);
+	for (let i = 1; i < snapshots.length; i++) {
+		if (JSON.stringify(snapshots[i]) !== baseline) {
+			const diff = formatDiff(snapshots[0], snapshots[i]);
 			throw new Error(
-				`Determinism regression: run #1 and run #${i + 1} differ. ${diff}`,
+				`Determinism regression [${name}]: run #1 and run #${i + 1} differ. ${diff}`,
 			);
 		}
 	}
+}
 
-	console.log(
-		"PASS: assignLanes() is deterministic for the fixed topology fixture.",
-	);
-	console.log(`      commits=${commits.length}, refs=${refs.length}, runs=3`);
-	console.log(
-		`      laneCount=${runs[0].laneCount}, segments=${runs[0].segmentCount}`,
-	);
+function runDeterminismCheck(): void {
+	const topologies: { name: string; fixture: () => { commits: CommitData[]; refs: RefData[] } }[] = [
+		{ name: 'empty', fixture: emptyFixture },
+		{ name: 'single-commit', fixture: singleCommitFixture },
+		{ name: 'linear-chain', fixture: linearFixture },
+		{ name: 'fan-out', fixture: fanOutFixture },
+		{ name: 'fan-in-merge', fixture: fanInFixture },
+		{ name: 'octopus-merge', fixture: octopusFixture },
+		{ name: 'composite (full fixture)', fixture: createDeterministicFixture },
+	];
+
+	for (const { name, fixture } of topologies) {
+		const { commits, refs } = fixture();
+		assertDeterministic(name, commits, refs);
+
+		const result = assignLanes(commits, refs);
+		console.log(
+			`  PASS  ${name.padEnd(26)} commits=${String(commits.length).padStart(2)}, refs=${String(refs.length).padStart(2)}, lanes=${result.laneCount}, segments=${result.segments.length}`,
+		);
+	}
+
+	console.log(`PASS: assignLanes() is deterministic for ${topologies.length} topology shapes (${DETERMINISM_RUNS} runs each).`);
 
 	runVisibleRangeRegression();
 	runEdgeCullingRegression();
-	runHitTestRegression(fixtureLayout);
+
+	const compositeLayout = assignLanes(
+		createDeterministicFixture().commits,
+		createDeterministicFixture().refs,
+	);
+	runHitTestRegression(compositeLayout);
 	console.log(
 		"PASS: renderer viewport regressions hold for visible-range, edge-culling, and hit-test math.",
 	);
