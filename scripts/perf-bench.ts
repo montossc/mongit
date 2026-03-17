@@ -49,6 +49,31 @@ interface BenchResult {
 	heapTotalMB: number;
 }
 
+interface TenKCheck {
+	name: string;
+	value: string;
+	pass: boolean;
+}
+
+interface BenchmarkSnapshot {
+	generatedAt: string;
+	targets: {
+		layoutMs: number;
+		hitTestMs: number;
+		heapMb: number;
+	};
+	tenK: {
+		layoutMs: number;
+		hitTestMs: number;
+		heapMb: number;
+		laneCount: number;
+		segmentCount: number;
+		allPass: boolean;
+		checks: TenKCheck[];
+	} | null;
+	results: BenchResult[];
+}
+
 function runBenchmark(commitCount: number, branchCount: number): BenchResult {
 	// Force GC if available
 	if (global.gc) global.gc();
@@ -209,7 +234,7 @@ if (tenK) {
 	console.log('  10k Commit Validation (PRD R7 Targets)');
 	console.log('═'.repeat(50));
 
-	const checks = [
+	const checks: TenKCheck[] = [
 		{
 			name: 'Layout time < 100ms',
 			value: `${tenK.layoutTimeMs.toFixed(1)}ms`,
@@ -254,6 +279,36 @@ if (tenK) {
 	console.log('  [ ] No visual glitches during rapid scroll');
 	console.log('  [ ] Retina rendering is crisp (sharp lines/text at 2x)');
 	console.log('  [ ] Correct topology (branches/merges render properly)');
+
+	const snapshot: BenchmarkSnapshot = {
+		generatedAt: new Date().toISOString(),
+		targets: {
+			layoutMs: LAYOUT_TARGET_MS,
+			hitTestMs: HIT_TEST_TARGET_MS,
+			heapMb: MEMORY_TARGET_MB
+		},
+		tenK: {
+			layoutMs: Number(tenK.layoutTimeMs.toFixed(3)),
+			hitTestMs: Number(tenK.hitTestAvgMs.toFixed(6)),
+			heapMb: Number(tenK.heapTotalMB.toFixed(3)),
+			laneCount: tenK.laneCount,
+			segmentCount: tenK.segmentCount,
+			allPass,
+			checks
+		},
+		results: results.map((r) => ({
+			...r,
+			genTimeMs: Number(r.genTimeMs.toFixed(3)),
+			layoutTimeMs: Number(r.layoutTimeMs.toFixed(3)),
+			hitTestAvgMs: Number(r.hitTestAvgMs.toFixed(6)),
+			heapUsedMB: Number(r.heapUsedMB.toFixed(3)),
+			heapTotalMB: Number(r.heapTotalMB.toFixed(3))
+		}))
+	};
+
+	console.log();
+	console.log('Benchmark snapshot JSON (for progress log baseline):');
+	console.log(JSON.stringify(snapshot, null, 2));
 }
 
 console.log();

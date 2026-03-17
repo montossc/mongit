@@ -10,3 +10,28 @@ Started: 2026-03-17
 ---
 
 <!-- Task logs below - APPEND ONLY -->
+
+## 2026-03-17 — validation-1
+- status: complete
+- commit: c7ebde3
+- files:
+  - src/routes/spike-b/+page.svelte
+  - src/lib/graph/FpsOverlay.svelte
+  - src/lib/graph/GraphCanvas.svelte
+- evidence:
+  - /spike-b adds explicit validation checklist and completion counter
+  - interaction counters wired into overlay (selection/hover/context/keyboard/detail)
+  - `pnpm check` passed
+
+## 2026-03-17 — benchmark-1
+- status: complete
+- commit: pending (this task commit)
+- files:
+  - scripts/perf-bench.ts
+  - .beads/artifacts/bd-12d/progress.txt
+  - .beads/artifacts/bd-12d.3/prd.json
+  - .beads/artifacts/bd-12d.3/progress.txt
+- evidence:
+  - `npx tsx scripts/perf-bench.ts` printed machine-readable benchmark snapshot JSON
+  - baseline refresh appended to `.beads/artifacts/bd-12d/progress.txt`
+  - full verification pending before commit

@@ -76,3 +76,74 @@ PASS: renderer viewport regressions hold for visible-range, edge-culling, and hi
 - [ ] Keyboard navigation: ↑ ↓ Home End PageUp PageDown Enter Escape
 - [ ] Commit detail panel shows selected commit info
 - [ ] FPS overlay toggles with button and Cmd+Shift+P
+
+## Automated Benchmark Baseline Refresh (bd-12d.3 / benchmark-1)
+
+Date: 2026-03-17
+Command: `npx tsx scripts/perf-bench.ts`
+
+```text
+10k Commit Validation (PRD R7 Targets)
+✓ PASS Layout time < 100ms  4.6ms
+✓ PASS Hit test < 1ms       0.0000ms
+✓ PASS JS heap < 50MB       30.5MB
+✓ PASS Lane count < 50      10
+Overall: ✓ ALL TARGETS MET
+```
+
+Benchmark snapshot JSON (machine-comparable):
+
+```json
+{
+  "generatedAt": "2026-03-17T18:00:53.614Z",
+  "targets": {
+    "layoutMs": 100,
+    "hitTestMs": 1,
+    "heapMb": 50
+  },
+  "tenK": {
+    "layoutMs": 4.644,
+    "hitTestMs": 0.00003,
+    "heapMb": 30.488,
+    "laneCount": 10,
+    "segmentCount": 10701,
+    "allPass": true,
+    "checks": [
+      {
+        "name": "Layout time < 100ms",
+        "value": "4.6ms",
+        "pass": true
+      },
+      {
+        "name": "Hit test < 1ms",
+        "value": "0.0000ms",
+        "pass": true
+      },
+      {
+        "name": "JS heap < 50MB",
+        "value": "30.5MB",
+        "pass": true
+      },
+      {
+        "name": "Lane count < 50",
+        "value": "10",
+        "pass": true
+      }
+    ]
+  }
+}
+```
+
+## Manual Validation Run Template (bd-12d.3)
+
+- Run date:
+- Operator:
+- Repo path:
+- Commit SHA under test:
+- [ ] Sustained FPS >= 55 during continuous scroll
+- [ ] Render frame < 8ms
+- [ ] First paint < 500ms
+- [ ] No visual glitches during rapid scroll
+- [ ] Retina rendering is crisp
+- [ ] Correct topology (branches/merges render properly)
+- Notes:
