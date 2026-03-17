@@ -27,6 +27,7 @@
   let maxFrameTimeMs = $state(0);
 
   const visibleRows = $derived(Math.ceil(Math.max(0, canvasHeight) / ROW_HEIGHT));
+  const scrollRow = $derived(Math.floor(Math.max(0, scrollTop) / ROW_HEIGHT));
   const totalCommits = $derived(layout?.nodes.length ?? 0);
   const laneCount = $derived(layout?.laneCount ?? 0);
   const layoutTimeMs = $derived(layout?.layoutTimeMs ?? 0);
@@ -158,6 +159,11 @@
     </div>
 
     <div class="metric">
+      <span class="label">Scroll Row</span>
+      <span class="value">{formatInt(scrollRow)}</span>
+    </div>
+
+    <div class="metric">
       <span class="label">Total Commits</span>
       <span class="value">{formatInt(totalCommits)}</span>
     </div>
@@ -172,8 +178,7 @@
       <span class="value">{formatMs(layoutTimeMs)}</span>
     </div>
 
-    <!-- Keep prop usage explicit for future expansion -->
-    <span class="sr-only">Scroll offset row {formatInt(Math.floor(scrollTop / ROW_HEIGHT))}</span>
+    <span class="sr-only">Scroll offset row {formatInt(scrollRow)}</span>
   </aside>
 {/if}
 

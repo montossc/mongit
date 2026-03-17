@@ -17,6 +17,9 @@ const REF_GAP = 6;
 
 function estimateRefBadgeWidth(ref: RefData): number {
 	const basePadding = ref.ref_type === "Head" ? 14 : 12;
+	// Approximation: renderer measures text with canvas font metrics, while hit-test
+	// uses a cheap per-character estimate to avoid requiring a canvas context here.
+	// Keep this estimate aligned with render.ts badge typography constants.
 	const textEstimate = Math.max(24, ref.name.length * 7);
 	return basePadding + textEstimate;
 }

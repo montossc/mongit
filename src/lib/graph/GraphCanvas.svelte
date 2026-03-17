@@ -123,19 +123,23 @@
     queueRender();
   }
 
-  function handleMouseMove(event: MouseEvent): void {
-    const target = hitFromMouse(event);
-    if (target.type === 'none') {
-      hoveredId = null;
-    } else {
-      hoveredId = target.node.data.id;
-    }
+  function setHoveredId(nextHoveredId: string | null): void {
+    if (hoveredId === nextHoveredId) return;
+    hoveredId = nextHoveredId;
     queueRender();
   }
 
+  function handleMouseMove(event: MouseEvent): void {
+    const target = hitFromMouse(event);
+    if (target.type === 'none') {
+      setHoveredId(null);
+    } else {
+      setHoveredId(target.node.data.id);
+    }
+  }
+
   function handleMouseLeave(): void {
-    hoveredId = null;
-    queueRender();
+    setHoveredId(null);
   }
 
   function handleClick(event: MouseEvent): void {
