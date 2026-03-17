@@ -24,10 +24,12 @@
 	let commitCount = $state(0);
 	let syntheticCount = $state(1000);
 	let unlistenRepoChanged: (() => void) | undefined;
-	let pendingRepoRefresh = $state(false);
-	let lastLoadedRepoPath = $state('');
+	let pendingRepoRefreshPath = $state<string | null>(null);
+	let loadedRepoPath = $state('');
+	let usingSyntheticData = $state(false);
 
 	onMount(() => {
+		let mounted = true;
 		isTauri = '__TAURI_INTERNALS__' in window;
 		if (isTauri) {
 			repoPath = '.';
@@ -36,16 +38,23 @@
 		async function setupRepoChangedListener() {
 			if (!isTauri) return;
 			const { listen } = await import('@tauri-apps/api/event');
-			unlistenRepoChanged = await listen<void>('repo-changed', () => {
+			const unlisten = await listen<void>('repo-changed', () => {
 				if (!isTauri) return;
-				if (!repoPath.trim()) return;
-				if (lastLoadedRepoPath !== repoPath.trim()) return;
+				if (usingSyntheticData) return;
+				if (!loadedRepoPath) return;
 				if (loading) {
-					pendingRepoRefresh = true;
+					pendingRepoRefreshPath = loadedRepoPath;
 					return;
 				}
-				void loadRepo();
+				void loadRepo(loadedRepoPath);
 			});
+
+			if (!mounted) {
+				unlisten();
+				return;
+			}
+
+			unlistenRepoChanged = unlisten;
 		}
 
 		void setupRepoChangedListener();
@@ -59,16 +68,17 @@
 
 		window.addEventListener('keydown', handleGlobalKeydown);
 		return () => {
+			mounted = false;
 			window.removeEventListener('keydown', handleGlobalKeydown);
 			unlistenRepoChanged?.();
 		};
 	});
 
-	async function loadRepo() {
-		if (!repoPath.trim()) return;
+	async function loadRepo(path = repoPath.trim()) {
+		if (!path.trim()) return;
 		if (!isTauri) return;
 		error = null;
-		const currentPath = repoPath.trim();
+		const currentPath = path.trim();
 		loading = true;
 
 		try {
@@ -78,7 +88,9 @@
 				invoke<RefData[]>('get_refs', { path: currentPath })
 			]);
 
-			lastLoadedRepoPath = currentPath;
+			usingSyntheticData = false;
+			loadedRepoPath = currentPath;
+			repoPath = currentPath;
 			commitCount = commits.length;
 			layout = assignLanes(commits, refs);
 			selectedNode = null;
@@ -87,9 +99,10 @@
 			layout = null;
 		} finally {
 			loading = false;
-			if (pendingRepoRefresh) {
-				pendingRepoRefresh = false;
-				void loadRepo();
+			if (pendingRepoRefreshPath && pendingRepoRefreshPath === loadedRepoPath) {
+				const refreshPath = pendingRepoRefreshPath;
+				pendingRepoRefreshPath = null;
+				void loadRepo(refreshPath);
 			}
 		}
 	}
@@ -97,7 +110,9 @@
 	function loadSyntheticData() {
 		error = null;
 		loading = true;
-		lastLoadedRepoPath = '';
+		usingSyntheticData = true;
+		loadedRepoPath = '';
+		pendingRepoRefreshPath = null;
 
 		try {
 			const commits = generateSyntheticCommits(syntheticCount, 5);
@@ -175,7 +190,7 @@
 						placeholder="Repository path..."
 						onkeydown={(e) => e.key === 'Enter' && loadRepo()}
 					/>
-					<button class="btn btn-primary" onclick={loadRepo} disabled={loading}>
+					<button class="btn btn-primary" onclick={() => loadRepo()} disabled={loading}>
 						{loading ? 'Loading...' : 'Open'}
 					</button>
 				</div>
