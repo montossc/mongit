@@ -11,7 +11,7 @@
         "Manual /spike-b synthetic 10k+ scroll shows no blank flashes or missing crossing edges",
         "pnpm check"
       ],
-      "passes": false,
+      "passes": true,
       "metadata": {
         "depends_on": [],
         "parallel": true,
@@ -31,7 +31,7 @@
         "Manual /spike-b validation confirms click/hover/right-click targeting still matches rendered commits",
         "FPS overlay reports visible rows and frame-time metrics during synthetic large-history scrolling"
       ],
-      "passes": false,
+      "passes": true,
       "metadata": {
         "depends_on": [
           "Visible-range renderer hardening"
