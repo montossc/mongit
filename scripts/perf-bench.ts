@@ -6,20 +6,22 @@
  */
 
 import { assignLanes, generateSyntheticCommits } from '../src/lib/graph/layout';
+import { hitTest } from '../src/lib/graph/hitTest';
+import {
+	GRAPH_PADDING_LEFT,
+	LANE_WIDTH,
+	ROW_HEIGHT,
+} from '../src/lib/graph/render';
 import type { CommitNode, RefData } from '../src/lib/graph/types';
 
-// ── Hit test simulation ──
+// ── Hit test benchmark (uses the real hitTest implementation) ──
 
-function simulateHitTest(
+function benchmarkHitTest(
 	nodes: CommitNode[],
 	laneCount: number,
+	layout: ReturnType<typeof assignLanes>,
 	iterations: number,
 ): number {
-	const ROW_HEIGHT = 32;
-	const LANE_WIDTH = 16;
-	const NODE_RADIUS = 4;
-	const GRAPH_PADDING_LEFT = 8;
-
 	const start = performance.now();
 	for (let i = 0; i < iterations; i++) {
 		const randomRow = Math.floor(Math.random() * nodes.length);
@@ -27,17 +29,8 @@ function simulateHitTest(
 			Math.random() * (GRAPH_PADDING_LEFT + laneCount * LANE_WIDTH + 400);
 		const absoluteY = randomRow * ROW_HEIGHT + ROW_HEIGHT / 2;
 
-		// Row lookup (O(1))
-		const row = Math.floor(absoluteY / ROW_HEIGHT);
-		if (row >= 0 && row < nodes.length) {
-			const node = nodes[row];
-			const nodeX =
-				GRAPH_PADDING_LEFT + node.lane * LANE_WIDTH + LANE_WIDTH / 2;
-			const nodeY = row * ROW_HEIGHT + ROW_HEIGHT / 2;
-			const dx = randomX - nodeX;
-			const dy = absoluteY - nodeY;
-			const _isHit = dx * dx + dy * dy <= NODE_RADIUS * NODE_RADIUS;
-		}
+		// Use the real hitTest implementation — no duplicated logic
+		hitTest(layout, randomX, absoluteY, laneCount);
 	}
 	return (performance.now() - start) / iterations;
 }
@@ -98,7 +91,7 @@ function runBenchmark(commitCount: number, branchCount: number): BenchResult {
 	const result = assignLanes(commits, refs, { maxCommits: commitCount });
 
 	// Hit test benchmark
-	const hitTestAvgMs = simulateHitTest(result.nodes, result.laneCount, 10000);
+	const hitTestAvgMs = benchmarkHitTest(result.nodes, result.laneCount, result, 10000);
 
 	// Memory measurement
 	const heapAfter = process.memoryUsage();
