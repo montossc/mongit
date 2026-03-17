@@ -14,14 +14,8 @@ const WATCH_DEBOUNCE_MS: u64 = 300;
 /// Type alias for the file watcher handle
 pub type WatcherHandle = Debouncer<RecommendedWatcher, RecommendedCache>;
 
-/// Active watcher session tracked in Tauri state.
-pub struct ActiveWatcher {
-    pub path: PathBuf,
-    pub _handle: WatcherHandle,
-}
-
 /// Managed state wrapping the optional watcher
-pub type WatcherState = Mutex<Option<ActiveWatcher>>;
+pub type WatcherState = Mutex<Option<WatcherHandle>>;
 
 fn canonicalize_repo_path(path: &str) -> Result<PathBuf, String> {
     let watch_path = PathBuf::from(path);
@@ -73,6 +67,10 @@ fn should_emit_for_path(path: &Path) -> bool {
     true
 }
 
+fn should_emit_for_paths(paths: &[PathBuf]) -> bool {
+    paths.iter().any(|p| should_emit_for_path(p))
+}
+
 /// Start watching a repository for file changes.
 ///
 /// Emits `repo-changed` Tauri events to the frontend when relevant files change.
@@ -85,17 +83,6 @@ pub async fn watch_repo(
 ) -> Result<(), String> {
     let watch_path = canonicalize_repo_path(&path)?;
 
-    {
-        let state = watcher_state
-            .lock()
-            .map_err(|e| format!("Lock poisoned: {}", e))?;
-        if let Some(active) = state.as_ref() {
-            if active.path == watch_path {
-                return Ok(());
-            }
-        }
-    }
-
     let app_clone = app.clone();
 
     let mut debouncer = new_debouncer(
@@ -106,7 +93,7 @@ pub async fn watch_repo(
                 Ok(events) => {
                     let should_emit = events
                         .iter()
-                        .any(|e| e.paths.iter().any(|p| should_emit_for_path(p)));
+                        .any(|e| should_emit_for_paths(&e.paths));
                     if should_emit {
                         let _ = app_clone.emit("repo-changed", ());
                     }
@@ -128,10 +115,7 @@ pub async fn watch_repo(
     let mut state = watcher_state
         .lock()
         .map_err(|e| format!("Lock poisoned: {}", e))?;
-    *state = Some(ActiveWatcher {
-        path: watch_path,
-        _handle: debouncer,
-    });
+    *state = Some(debouncer);
 
     Ok(())
 }
@@ -206,13 +190,36 @@ mod tests {
     }
 
     #[test]
+    fn test_should_emit_for_paths_mixed_batch() {
+        let paths = vec![
+            PathBuf::from("/repo/node_modules/pkg/index.js"),
+            PathBuf::from("/repo/src/main.rs"),
+        ];
+        assert!(should_emit_for_paths(&paths));
+    }
+
+    #[test]
+    fn test_should_not_emit_for_paths_all_suppressed() {
+        let paths = vec![
+            PathBuf::from("/repo/node_modules/pkg/index.js"),
+            PathBuf::from("/repo/target/debug/build"),
+            PathBuf::from("/repo/.git/objects/ab/cdef123"),
+        ];
+        assert!(!should_emit_for_paths(&paths));
+    }
+
+    #[test]
     fn test_watch_debounce_constant_is_expected() {
         assert_eq!(WATCH_DEBOUNCE_MS, 300);
     }
 
     #[test]
     fn test_canonicalize_repo_path_rejects_missing_path() {
-        let err = canonicalize_repo_path("/definitely/missing/path/for/watcher").unwrap_err();
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        let missing = dir.path().join("missing-child-path");
+        let missing_str = missing.to_str().expect("utf-8 temp path");
+
+        let err = canonicalize_repo_path(missing_str).unwrap_err();
         assert!(err.contains("Path does not exist"));
     }
 
