@@ -3,16 +3,41 @@ use notify_debouncer_full::{
     notify::{RecommendedWatcher, RecursiveMode},
     DebounceEventResult, Debouncer, RecommendedCache,
 };
+use git2::Repository;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
+const WATCH_DEBOUNCE_MS: u64 = 300;
+
 /// Type alias for the file watcher handle
 pub type WatcherHandle = Debouncer<RecommendedWatcher, RecommendedCache>;
 
+/// Active watcher session tracked in Tauri state.
+pub struct ActiveWatcher {
+    pub path: PathBuf,
+    pub _handle: WatcherHandle,
+}
+
 /// Managed state wrapping the optional watcher
-pub type WatcherState = Mutex<Option<WatcherHandle>>;
+pub type WatcherState = Mutex<Option<ActiveWatcher>>;
+
+fn canonicalize_repo_path(path: &str) -> Result<PathBuf, String> {
+    let watch_path = PathBuf::from(path);
+    if !watch_path.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    let canonical = watch_path
+        .canonicalize()
+        .map_err(|e| format!("Failed to canonicalize path: {e}"))?;
+
+    Repository::open(&canonical)
+        .map_err(|e| format!("Not a git repository: {e}"))?;
+
+    Ok(canonical)
+}
 
 /// Determine whether a file change at the given path should emit a `repo-changed` event.
 ///
@@ -58,15 +83,23 @@ pub async fn watch_repo(
     path: String,
     watcher_state: State<'_, WatcherState>,
 ) -> Result<(), String> {
-    let watch_path = PathBuf::from(&path);
-    if !watch_path.exists() {
-        return Err(format!("Path does not exist: {}", path));
+    let watch_path = canonicalize_repo_path(&path)?;
+
+    {
+        let state = watcher_state
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))?;
+        if let Some(active) = state.as_ref() {
+            if active.path == watch_path {
+                return Ok(());
+            }
+        }
     }
 
     let app_clone = app.clone();
 
     let mut debouncer = new_debouncer(
-        Duration::from_millis(300),
+        Duration::from_millis(WATCH_DEBOUNCE_MS),
         None,
         move |result: DebounceEventResult| {
             match result {
@@ -95,7 +128,10 @@ pub async fn watch_repo(
     let mut state = watcher_state
         .lock()
         .map_err(|e| format!("Lock poisoned: {}", e))?;
-    *state = Some(debouncer);
+    *state = Some(ActiveWatcher {
+        path: watch_path,
+        _handle: debouncer,
+    });
 
     Ok(())
 }
@@ -108,7 +144,7 @@ pub async fn stop_watching(
     let mut state = watcher_state
         .lock()
         .map_err(|e| format!("Lock poisoned: {}", e))?;
-    *state = None; // Dropping the debouncer stops the watcher
+    *state = None; // Dropping ActiveWatcher (and debouncer handle) stops the watcher
     Ok(())
 }
 
@@ -156,4 +192,37 @@ mod tests {
     fn test_should_not_emit_target() {
         assert!(!should_emit_for_path(&PathBuf::from("/repo/target/debug/build")));
     }
+
+    #[test]
+    fn test_watch_debounce_constant_is_expected() {
+        assert_eq!(WATCH_DEBOUNCE_MS, 300);
+    }
+
+    #[test]
+    fn test_canonicalize_repo_path_rejects_missing_path() {
+        let err = canonicalize_repo_path("/definitely/missing/path/for/watcher").unwrap_err();
+        assert!(err.contains("Path does not exist"));
+    }
+
+    #[test]
+    fn test_canonicalize_repo_path_rejects_non_repo_path() {
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        let path = dir.path().to_str().expect("utf-8 temp path");
+
+        let err = canonicalize_repo_path(path).unwrap_err();
+        assert!(err.contains("Not a git repository"));
+    }
+
+    #[test]
+    fn test_canonicalize_repo_path_accepts_git_repo() {
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        git2::Repository::init(dir.path()).expect("init repo");
+
+        let path = dir.path().to_str().expect("utf-8 temp path");
+        let canonical = canonicalize_repo_path(path).expect("repo path should be valid");
+
+        assert!(canonical.is_absolute());
+        assert_eq!(canonical, dir.path().canonicalize().expect("canonicalize"));
+    }
+
 }
