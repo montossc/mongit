@@ -1,0 +1,82 @@
+{
+  "beadId": "bd-12d.2",
+  "prdName": "canvas-renderer-and-viewport-virtualization",
+  "tasks": [
+    {
+      "id": "renderer-1",
+      "category": "renderer",
+      "description": "The Canvas renderer draws only the necessary visible work while preserving cross-viewport edge correctness.",
+      "steps": [
+        "npx tsx scripts/determinism-check.ts",
+        "Manual /spike-b synthetic 10k+ scroll shows no blank flashes or missing crossing edges",
+        "pnpm check"
+      ],
+      "passes": false,
+      "metadata": {
+        "depends_on": [],
+        "parallel": true,
+        "conflicts_with": [],
+        "files": [
+          "src/lib/graph/render.ts",
+          "scripts/determinism-check.ts"
+        ]
+      }
+    },
+    {
+      "id": "integration-1",
+      "category": "integration",
+      "description": "The graph canvas, hit testing, and FPS overlay stay aligned with renderer geometry while preserving smooth-scroll behavior.",
+      "steps": [
+        "pnpm check",
+        "Manual /spike-b validation confirms click/hover/right-click targeting still matches rendered commits",
+        "FPS overlay reports visible rows and frame-time metrics during synthetic large-history scrolling"
+      ],
+      "passes": false,
+      "metadata": {
+        "depends_on": [
+          "Visible-range renderer hardening"
+        ],
+        "parallel": false,
+        "conflicts_with": [],
+        "files": [
+          "src/lib/graph/GraphCanvas.svelte",
+          "src/lib/graph/hitTest.ts",
+          "src/lib/graph/FpsOverlay.svelte",
+          "src/lib/graph/render.ts"
+        ]
+      }
+    }
+  ],
+  "context": {
+    "patterns": [
+      "Renderer entry point: src/lib/graph/render.ts -> renderGraph()",
+      "Viewport range + edge culling: getVisibleRange() and segmentIntersectsVisibleRows()",
+      "Canvas loop + interaction: src/lib/graph/GraphCanvas.svelte"
+    ],
+    "keyFiles": [
+      "src/lib/graph/render.ts",
+      "src/lib/graph/GraphCanvas.svelte",
+      "src/lib/graph/hitTest.ts",
+      "src/lib/graph/FpsOverlay.svelte",
+      "src/routes/spike-b/+page.svelte"
+    ],
+    "nonGoals": [
+      "Route extraction/toolbars in /spike-b",
+      "Layout determinism ownership from bd-12d.1",
+      "Real-repo performance evidence capture from bd-12d.3",
+      "New rendering technology or dependency additions"
+    ]
+  },
+  "beadMetadata": {
+    "depends_on": [
+      "bd-12d.1",
+      "bd-12d"
+    ],
+    "parallel": true,
+    "conflicts_with": [],
+    "blocks": [
+      "bd-12d.3"
+    ],
+    "estimated_hours": 2
+  }
+}
