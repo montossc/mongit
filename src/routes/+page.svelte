@@ -26,6 +26,7 @@
 	let unlistenRepoChanged: (() => void) | undefined;
 	let pendingRepoRefreshPath = $state<string | null>(null);
 	let loadedRepoPath = $state('');
+	let inFlightRepoPath = $state<string | null>(null);
 	let usingSyntheticData = $state(false);
 
 	onMount(() => {
@@ -41,9 +42,13 @@
 			const unlisten = await listen<void>('repo-changed', () => {
 				if (!isTauri) return;
 				if (usingSyntheticData) return;
-				if (!loadedRepoPath) return;
 				if (loading) {
-					pendingRepoRefreshPath = loadedRepoPath;
+					if (inFlightRepoPath) {
+						pendingRepoRefreshPath = inFlightRepoPath;
+					}
+					return;
+				}
+				if (!loadedRepoPath) {
 					return;
 				}
 				void loadRepo(loadedRepoPath);
@@ -79,6 +84,8 @@
 		if (!isTauri) return;
 		error = null;
 		const currentPath = path.trim();
+		pendingRepoRefreshPath = null;
+		inFlightRepoPath = currentPath;
 		loading = true;
 
 		try {
@@ -99,10 +106,13 @@
 			layout = null;
 		} finally {
 			loading = false;
+			inFlightRepoPath = null;
 			if (pendingRepoRefreshPath && pendingRepoRefreshPath === loadedRepoPath) {
 				const refreshPath = pendingRepoRefreshPath;
 				pendingRepoRefreshPath = null;
 				void loadRepo(refreshPath);
+			} else {
+				pendingRepoRefreshPath = null;
 			}
 		}
 	}
