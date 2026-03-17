@@ -342,6 +342,7 @@ function runDeterminismCheck(): void {
 		createDeterministicFixture().refs,
 	);
 	runRefBadgeGeometryRegression();
+	runHitTestRegression(compositeLayout);
 	console.log(
 		"PASS: renderer viewport regressions hold for visible-range, edge-culling, and hit-test math.",
 	);
