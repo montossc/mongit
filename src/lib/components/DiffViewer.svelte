@@ -23,6 +23,7 @@
 	let { view }: DiffViewerProps = $props();
 
 	let container = $state<HTMLDivElement | null>(null);
+	let renderError = $state<string | null>(null);
 
 	const stats = $derived.by(() => {
 		if (view.kind !== 'ready') return null;
@@ -45,6 +46,7 @@
 	 * - No separate onMount/onDestroy needed
 	 */
 	$effect(() => {
+		renderError = null;
 		if (view.kind !== 'ready' || !container) return;
 
 		const extensions = [
@@ -54,17 +56,21 @@
 			EditorState.readOnly.of(true)
 		];
 
-		const mv = new MergeView({
-			parent: container,
-			a: { doc: view.original, extensions },
-			b: { doc: view.modified, extensions },
-			gutter: true,
-			highlightChanges: true,
-			revertControls: 'a-to-b',
-			collapseUnchanged: { margin: 3, minSize: 8 }
-		});
+		try {
+			const mv = new MergeView({
+				parent: container,
+				a: { doc: view.original, extensions },
+				b: { doc: view.modified, extensions },
+				gutter: true,
+				highlightChanges: true,
+				revertControls: 'a-to-b',
+				collapseUnchanged: { margin: 3, minSize: 8 }
+			});
 
-		return () => mv.destroy();
+			return () => mv.destroy();
+		} catch (e) {
+			renderError = e instanceof Error ? e.message : String(e);
+		}
 	});
 </script>
 
@@ -100,7 +106,14 @@
 				</div>
 			{/if}
 		</header>
-		<div class="diff-container" bind:this={container}></div>
+		{#if renderError}
+			<div class="diff-placeholder diff-error">
+				<span class="diff-error-label">Render Error</span>
+				<span class="diff-placeholder-text">{renderError}</span>
+			</div>
+		{:else}
+			<div class="diff-container" bind:this={container}></div>
+		{/if}
 	</div>
 {/if}
 

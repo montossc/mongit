@@ -12,7 +12,7 @@
 				"Inspect src/lib/components/DiffViewer.svelte and confirm the component exposes explicit loading/empty/error/ready handling without repo-fetch logic",
 				"Open /spike-d and confirm the ready state renders a read-only MergeView for caller-provided content"
 			],
-			"passes": false,
+			"passes": true,
 			"metadata": {
 				"depends_on": [],
 				"parallel": false,
@@ -30,7 +30,7 @@
 				"Open /spike-d and verify each shell state is reachable and visually distinct",
 				"Confirm no repo-changed listener or Tauri diff fetch was introduced in the route for this bead"
 			],
-			"passes": false,
+			"passes": true,
 			"metadata": {
 				"depends_on": ["Normalize DiffViewer shell API"],
 				"parallel": false,
