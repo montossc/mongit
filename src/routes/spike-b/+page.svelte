@@ -61,6 +61,7 @@
 			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
 				e.preventDefault();
 				showFps = !showFps;
+				validationChecklist = { ...validationChecklist, fpsToggle: true };
 			}
 		}
 
@@ -93,7 +94,6 @@
 			validationChecklist = {
 				...validationChecklist,
 				loadRealRepo: true,
-				repeatLoadStable: true,
 				openSpikeRoute: true
 			};
 		} catch (e) {
@@ -179,15 +179,12 @@
 	}
 	function handleScrollChange(newScrollTop: number) {
 		scrollTop = newScrollTop;
-		validationChecklist = {
-			...validationChecklist,
-			sustainedScroll: true,
-			noBlankFlashes: true
-		};
+		// Manual-only checks are intentionally not auto-marked here.
 	}
+
 	function handleHeightChange(newHeight: number) {
 		canvasHeight = newHeight;
-		validationChecklist = { ...validationChecklist, hidpiCrisp: true };
+		// HiDPI crispness is manual-only; keep user-controlled checklist state.
 	}
 
 	function handleKeyInteraction(key: string) {

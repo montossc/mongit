@@ -56,6 +56,7 @@ interface TenKCheck {
 }
 
 interface BenchmarkSnapshot {
+	runId: string;
 	generatedAt: string;
 	targets: {
 		layoutMs: number;
@@ -281,6 +282,7 @@ if (tenK) {
 	console.log('  [ ] Correct topology (branches/merges render properly)');
 
 	const snapshot: BenchmarkSnapshot = {
+		runId: 'replace-before-logging',
 		generatedAt: new Date().toISOString(),
 		targets: {
 			layoutMs: LAYOUT_TARGET_MS,
@@ -306,9 +308,25 @@ if (tenK) {
 		}))
 	};
 
+	const runId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+	const snapshotWithRunMeta: BenchmarkSnapshot = {
+		...snapshot,
+		runId,
+		generatedAt: new Date().toISOString()
+	};
+
+	const normalizedSnapshot = {
+		...snapshotWithRunMeta,
+		runId: '<stable-run-id>',
+		generatedAt: '<stable-timestamp>'
+	};
+
 	console.log();
-	console.log('Benchmark snapshot JSON (for progress log baseline):');
-	console.log(JSON.stringify(snapshot, null, 2));
+	console.log('Benchmark snapshot JSON (stable baseline, compare this block):');
+	console.log(JSON.stringify(normalizedSnapshot, null, 2));
+	console.log();
+	console.log('Benchmark snapshot metadata (run-specific):');
+	console.log(JSON.stringify({ runId: snapshotWithRunMeta.runId, generatedAt: snapshotWithRunMeta.generatedAt }, null, 2));
 }
 
 console.log();
