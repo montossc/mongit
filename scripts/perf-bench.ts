@@ -95,7 +95,7 @@ function runBenchmark(commitCount: number, branchCount: number): BenchResult {
 	}
 
 	// Run layout
-	const result = assignLanes(commits, refs);
+	const result = assignLanes(commits, refs, { maxCommits: commitCount });
 
 	// Hit test benchmark
 	const hitTestAvgMs = simulateHitTest(result.nodes, result.laneCount, 10000);

@@ -519,6 +519,7 @@ function drawCommitText(
 		ctx.fillStyle = theme.textSecondary;
 		ctx.textAlign = "right";
 		ctx.fillText(meta, rightEdge, y + 0.5);
+		ctx.textAlign = "left";
 	}
 
 	ctx.textAlign = "left";
