@@ -30,7 +30,7 @@
 				"Confirm tests cover suppressed paths, allowed .git paths, and lifecycle stop/replace behavior",
 				"Confirm no frontend refresh wiring was introduced while adding watcher verification coverage"
 			],
-			"passes": false,
+			"passes": true,
 			"metadata": {
 				"depends_on": ["Harden watcher lifecycle contract"],
 				"parallel": false,

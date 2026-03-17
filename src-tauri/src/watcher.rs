@@ -194,6 +194,18 @@ mod tests {
     }
 
     #[test]
+    fn test_should_emit_git_directory_root() {
+        assert!(should_emit_for_path(&PathBuf::from("/repo/.git")));
+    }
+
+    #[test]
+    fn test_should_not_emit_nested_target_path() {
+        assert!(!should_emit_for_path(&PathBuf::from(
+            "/repo/packages/ui/target/tmp/output"
+        )));
+    }
+
+    #[test]
     fn test_watch_debounce_constant_is_expected() {
         assert_eq!(WATCH_DEBOUNCE_MS, 300);
     }
