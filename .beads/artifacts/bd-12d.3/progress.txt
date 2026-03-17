@@ -35,3 +35,15 @@ Started: 2026-03-17
   - `npx tsx scripts/perf-bench.ts` printed machine-readable benchmark snapshot JSON
   - baseline refresh appended to `.beads/artifacts/bd-12d/progress.txt`
   - full verification passed before commit (`npx tsx scripts/perf-bench.ts`, `pnpm check`, `pnpm build`, `cargo check`)
+
+## 2026-03-17 — review-fixes
+- status: complete
+- commit: f204538
+- files:
+  - src/routes/spike-b/+page.svelte
+  - scripts/perf-bench.ts
+- evidence:
+  - manual-only checklist items are no longer auto-marked by scroll/resize/load side effects
+  - keyboard FPS shortcut now marks `fpsToggle` checklist item
+  - benchmark output now includes stable baseline JSON block + separate run metadata block
+  - re-review (post-fix diff) reported no critical/important/minor findings

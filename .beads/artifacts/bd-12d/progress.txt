@@ -147,3 +147,39 @@ Benchmark snapshot JSON (machine-comparable):
 - [ ] Retina rendering is crisp
 - [ ] Correct topology (branches/merges render properly)
 - Notes:
+
+## Automated Benchmark Baseline Refresh (bd-12d.3 / review-fix)
+
+Date: 2026-03-17
+Command: `npx tsx scripts/perf-bench.ts`
+
+```text
+10k Commit Validation (PRD R7 Targets)
+✓ PASS Layout time < 100ms  6.0ms
+✓ PASS Hit test < 1ms       0.0000ms
+✓ PASS JS heap < 50MB       20.5MB
+✓ PASS Lane count < 50      10
+Overall: ✓ ALL TARGETS MET
+```
+
+Benchmark snapshot JSON (stable baseline, compare this block):
+
+```json
+{
+  "runId": "<stable-run-id>",
+  "generatedAt": "<stable-timestamp>",
+  "targets": {
+    "layoutMs": 100,
+    "hitTestMs": 1,
+    "heapMb": 50
+  },
+  "tenK": {
+    "layoutMs": 5.982,
+    "hitTestMs": 0.000029,
+    "heapMb": 20.52,
+    "laneCount": 10,
+    "segmentCount": 10758,
+    "allPass": true
+  }
+}
+```
