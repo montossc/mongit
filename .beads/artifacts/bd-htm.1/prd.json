@@ -1,0 +1,72 @@
+{
+	"beadId": "bd-htm.1",
+	"prdName": "codemirror-diff-shell",
+	"tasks": [
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"title": "Normalize DiffViewer shell API",
+			"description": "Refactor DiffViewer so callers provide its rendering state and diff content while the component owns only MergeView lifecycle and fallback presentation.",
+			"steps": [
+				"pnpm check",
+				"Inspect src/lib/components/DiffViewer.svelte and confirm the component exposes explicit loading/empty/error/ready handling without repo-fetch logic",
+				"Open /spike-d and confirm the ready state renders a read-only MergeView for caller-provided content"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/components/DiffViewer.svelte"]
+			}
+		},
+		{
+			"id": "frontend-2",
+			"category": "frontend",
+			"title": "Add spike shell-state harness",
+			"description": "Update /spike-d so the Diff tab demonstrates loading, empty, error, and ready shell states using the new DiffViewer contract.",
+			"steps": [
+				"pnpm check",
+				"Open /spike-d and verify each shell state is reachable and visually distinct",
+				"Confirm no repo-changed listener or Tauri diff fetch was introduced in the route for this bead"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["Normalize DiffViewer shell API"],
+				"parallel": false,
+				"conflicts_with": ["bd-htm.3"],
+				"files": ["src/routes/spike-d/+page.svelte"]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"MergeView lifecycle: src/lib/components/DiffViewer.svelte:170-190",
+			"Svelte action lifecycle: src/lib/actions/codemirror.ts:13-42",
+			"CM6 extension composition: src/lib/utils/codemirror-config.ts:9-30",
+			"Theme tokens: src/lib/utils/codemirror-theme.ts:9-47",
+			"Spike tab layout: src/routes/spike-d/+page.svelte:68-83"
+		],
+		"keyFiles": [
+			"src/lib/components/DiffViewer.svelte",
+			"src/routes/spike-d/+page.svelte",
+			"src/lib/utils/codemirror-config.ts",
+			"src/lib/utils/codemirror-theme.ts"
+		],
+		"nonGoals": [
+			"Fetching real diff data from Tauri commands",
+			"Building changed-file list or repo-backed selection workflow",
+			"Listening to repo-changed or implementing targeted refresh behavior",
+			"Watcher lifecycle, debounce tuning, or Rust event payload changes",
+			"Line-level/hunk-level staging controls",
+			"Conflict resolution actions"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": [],
+		"parallel": false,
+		"conflicts_with": ["bd-htm.3"],
+		"blocks": ["bd-htm.3"],
+		"estimated_hours": 3
+	}
+}

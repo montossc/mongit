@@ -1,9 +1,146 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import DiffViewer from '$lib/components/DiffViewer.svelte';
+	import DiffViewer, { type DiffViewerState } from '$lib/components/DiffViewer.svelte';
 	import MergeEditor from '$lib/components/MergeEditor.svelte';
 	import WatcherMonitor from '$lib/components/WatcherMonitor.svelte';
 	import BenchmarkPanel from '$lib/components/BenchmarkPanel.svelte';
+
+	// ── Sample diff data (moved from DiffViewer — callers own state) ─────
+
+	const SAMPLE_FILE_NAME = 'src/lib/utils/build-graph-layout.ts';
+
+	const SAMPLE_ORIGINAL = `type Node = {
+	id: string;
+	parents: string[];
+	author: string;
+	timestamp: number;
+	branch: string;
+};
+
+type Point = {
+	x: number;
+	y: number;
+};
+
+export type GraphLayout = {
+	lanes: Map<string, number>;
+	positions: Map<string, Point>;
+	maxLane: number;
+};
+
+export function buildGraphLayout(nodes: Node[]): GraphLayout {
+	const lanes = new Map<string, number>();
+	const positions = new Map<string, Point>();
+	const activeLanes: string[] = [];
+	let nextLane = 0;
+	let maxLane = 0;
+
+	for (let index = 0; index < nodes.length; index += 1) {
+		const node = nodes[index];
+		let lane = activeLanes.indexOf(node.id);
+
+		if (lane === -1) {
+			lane = nextLane;
+			activeLanes[lane] = node.id;
+			nextLane += 1;
+		}
+
+		lanes.set(node.id, lane);
+		positions.set(node.id, {
+			x: lane * 24 + 16,
+			y: index * 28 + 20
+		});
+
+		for (const parentId of node.parents) {
+			const parentLane = activeLanes.indexOf(parentId);
+			if (parentLane === -1) {
+				activeLanes[lane] = parentId;
+			} else if (parentLane !== lane) {
+				activeLanes[parentLane] = activeLanes[lane];
+				activeLanes[lane] = parentId;
+			}
+		}
+
+		maxLane = Math.max(maxLane, lane);
+	}
+
+	return { lanes, positions, maxLane };
+}`;
+
+	const SAMPLE_MODIFIED = `type Node = {
+	id: string;
+	parents: string[];
+	author: string;
+	timestamp: number;
+	branch: string;
+	isHead?: boolean;
+};
+
+type Point = {
+	x: number;
+	y: number;
+};
+
+export type GraphLayout = {
+	lanes: Map<string, number>;
+	positions: Map<string, Point>;
+	maxLane: number;
+	laneWidth: number;
+};
+
+const LANE_WIDTH = 26;
+const ROW_HEIGHT = 30;
+const OFFSET_X = 18;
+const OFFSET_Y = 22;
+
+export function buildGraphLayout(nodes: Node[]): GraphLayout {
+	const lanes = new Map<string, number>();
+	const positions = new Map<string, Point>();
+	const activeLanes: string[] = [];
+	let nextLane = 0;
+	let maxLane = 0;
+
+	for (let index = 0; index < nodes.length; index += 1) {
+		const node = nodes[index];
+		let lane = activeLanes.indexOf(node.id);
+
+		if (lane < 0) {
+			lane = nextLane;
+			activeLanes[lane] = node.id;
+			nextLane += 1;
+		}
+
+		lanes.set(node.id, lane);
+		positions.set(node.id, {
+			x: lane * LANE_WIDTH + OFFSET_X,
+			y: index * ROW_HEIGHT + OFFSET_Y
+		});
+
+		for (const parentId of node.parents) {
+			const parentLane = activeLanes.indexOf(parentId);
+			if (parentLane < 0) {
+				activeLanes[lane] = parentId;
+				continue;
+			}
+
+			if (parentLane !== lane) {
+				activeLanes[parentLane] = activeLanes[lane];
+				activeLanes[lane] = parentId;
+			}
+		}
+
+		maxLane = Math.max(maxLane, lane);
+	}
+
+	return { lanes, positions, maxLane, laneWidth: LANE_WIDTH };
+}`;
+
+	const diffState: DiffViewerState = {
+		kind: 'ready',
+		original: SAMPLE_ORIGINAL,
+		modified: SAMPLE_MODIFIED,
+		filename: SAMPLE_FILE_NAME
+	};
 
 	const tabs = [
 		{ id: 'diff', label: 'Diff Viewer' },
@@ -67,7 +204,7 @@
 	<div class="tab-content">
 		{#if activeTab === 'diff'}
 			<div class="tab-panel visible" role="tabpanel">
-				<DiffViewer />
+				<DiffViewer view={diffState} />
 			</div>
 		{:else if activeTab === 'merge'}
 			<div class="tab-panel visible" role="tabpanel">
