@@ -14,8 +14,34 @@ const WATCH_DEBOUNCE_MS: u64 = 300;
 /// Type alias for the file watcher handle
 pub type WatcherHandle = Debouncer<RecommendedWatcher, RecommendedCache>;
 
+#[allow(dead_code)]
+pub struct ActiveWatcher {
+    pub path: PathBuf,
+    pub handle: WatcherHandle,
+}
+
 /// Managed state wrapping the optional watcher
-pub type WatcherState = Mutex<Option<WatcherHandle>>;
+pub type WatcherState = Mutex<Option<ActiveWatcher>>;
+
+fn set_active_watcher(
+    watcher_state: &WatcherState,
+    path: PathBuf,
+    handle: WatcherHandle,
+) -> Result<(), String> {
+    let mut state = watcher_state
+        .lock()
+        .map_err(|e| format!("Lock poisoned: {}", e))?;
+    *state = Some(ActiveWatcher { path, handle });
+    Ok(())
+}
+
+fn clear_active_watcher(watcher_state: &WatcherState) -> Result<(), String> {
+    let mut state = watcher_state
+        .lock()
+        .map_err(|e| format!("Lock poisoned: {}", e))?;
+    *state = None;
+    Ok(())
+}
 
 fn canonicalize_repo_path(path: &str) -> Result<PathBuf, String> {
     let watch_path = PathBuf::from(path);
@@ -112,10 +138,7 @@ pub async fn watch_repo(
         .map_err(|e| format!("Failed to watch path: {}", e))?;
 
     // Replace old watcher (dropping it stops the old one)
-    let mut state = watcher_state
-        .lock()
-        .map_err(|e| format!("Lock poisoned: {}", e))?;
-    *state = Some(debouncer);
+    set_active_watcher(&watcher_state, watch_path, debouncer)?;
 
     Ok(())
 }
@@ -125,10 +148,7 @@ pub async fn watch_repo(
 pub async fn stop_watching(
     watcher_state: State<'_, WatcherState>,
 ) -> Result<(), String> {
-    let mut state = watcher_state
-        .lock()
-        .map_err(|e| format!("Lock poisoned: {}", e))?;
-    *state = None; // Dropping ActiveWatcher (and debouncer handle) stops the watcher
+    clear_active_watcher(&watcher_state)?; // Dropping ActiveWatcher (and handle) stops the watcher
     Ok(())
 }
 
@@ -136,6 +156,23 @@ pub async fn stop_watching(
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    fn create_test_handle() -> WatcherHandle {
+        new_debouncer(
+            Duration::from_millis(WATCH_DEBOUNCE_MS),
+            None,
+            |_result: DebounceEventResult| {},
+        )
+        .expect("create debouncer")
+    }
+
+    fn active_path(state: &WatcherState) -> Option<PathBuf> {
+        state
+            .lock()
+            .expect("watcher state lock")
+            .as_ref()
+            .map(|active| active.path.clone())
+    }
 
     #[test]
     fn test_should_emit_working_tree_file() {
@@ -206,6 +243,34 @@ mod tests {
             PathBuf::from("/repo/.git/objects/ab/cdef123"),
         ];
         assert!(!should_emit_for_paths(&paths));
+    }
+
+    #[test]
+    fn test_set_active_watcher_replaces_previous_session_path() {
+        let state = WatcherState::default();
+        let first = PathBuf::from("/tmp/repo-a");
+        let second = PathBuf::from("/tmp/repo-b");
+
+        set_active_watcher(&state, first.clone(), create_test_handle()).expect("first install");
+        assert_eq!(active_path(&state), Some(first));
+
+        set_active_watcher(&state, second.clone(), create_test_handle()).expect("replace install");
+        assert_eq!(active_path(&state), Some(second));
+    }
+
+    #[test]
+    fn test_clear_active_watcher_drops_session() {
+        let state = WatcherState::default();
+        set_active_watcher(
+            &state,
+            PathBuf::from("/tmp/repo-c"),
+            create_test_handle(),
+        )
+        .expect("install");
+        assert!(active_path(&state).is_some());
+
+        clear_active_watcher(&state).expect("clear");
+        assert!(active_path(&state).is_none());
     }
 
     #[test]
