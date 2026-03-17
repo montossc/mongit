@@ -21,6 +21,11 @@ function nowMs(): number {
 /**
  * Assign lanes to commits using a greedy first-parent algorithm.
  *
+ * Determinism contract:
+ * - For identical ordered `commits` + `refs` inputs, output is stable across runs.
+ * - Lane assignment, node colors, and segment topology are deterministic.
+ * - This relies on deterministic iteration/insertion order and no random sources.
+ *
  * Strategy:
  * - First parent of a commit inherits its lane (straight lines for main branch)
  * - Other parents get new lanes or reuse freed lanes
