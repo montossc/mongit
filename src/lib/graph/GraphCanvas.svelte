@@ -16,9 +16,19 @@
     onContextAction?: (action: string, node: CommitNode) => void;
     onScrollChange?: (scrollTop: number) => void;
     onHeightChange?: (height: number) => void;
+    onHoverCommit?: (id: string | null) => void;
+    onKeyInteraction?: (key: string) => void;
   }
 
-  let { layout, onSelectCommit, onContextAction, onScrollChange, onHeightChange }: Props = $props();
+  let {
+    layout,
+    onSelectCommit,
+    onContextAction,
+    onScrollChange,
+    onHeightChange,
+    onHoverCommit,
+    onKeyInteraction
+  }: Props = $props();
 
   let container = $state<HTMLDivElement | null>(null);
   let canvas = $state<HTMLCanvasElement | null>(null);
@@ -126,6 +136,7 @@
   function setHoveredId(nextHoveredId: string | null): void {
     if (hoveredId === nextHoveredId) return;
     hoveredId = nextHoveredId;
+    onHoverCommit?.(nextHoveredId);
     queueRender();
   }
 
@@ -176,6 +187,8 @@
   }
 
   function handleKeydown(event: KeyboardEvent): void {
+    onKeyInteraction?.(event.key);
+
     if (!layout || layout.nodes.length === 0) return;
 
     if (event.key === 'Escape') {
