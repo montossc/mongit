@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::git::branch;
 use crate::git::{Git2Repository, GitRepository};
-use crate::git::repository::{CommitInfo, RefInfo};
+use crate::git::repository::{CommitInfo, DiffFileEntry, FileContentPair, RefInfo};
 use crate::git::resolver::GitResolver;
 
 /// Basic greet command to test IPC
@@ -66,8 +66,34 @@ pub async fn get_refs(path: String) -> Result<Vec<RefInfo>, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-// ── Branch operation commands ────────────────────────────────────────────
+/// Get the working directory diff for a repository.
+/// Returns a list of changed files with hunk-level detail.
+#[tauri::command]
+pub async fn get_diff_workdir(path: String) -> Result<Vec<DiffFileEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Git2Repository::open(&path);
+        repo.diff_workdir().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
 
+/// Get file content for diff rendering (original from HEAD, modified from working tree).
+#[tauri::command]
+pub async fn get_file_content_for_diff(
+    path: String,
+    file_path: String,
+) -> Result<FileContentPair, String> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Git2Repository::open(&path);
+        repo.file_content_for_diff(&file_path)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+// ── Branch operation commands ──────────────────────────────────────────────────────
 /// Resolve the git binary path via GitResolver.
 /// Called at the start of every branch command.
 fn resolve_git() -> Result<PathBuf, String> {

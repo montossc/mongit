@@ -156,4 +156,29 @@ mod tests {
     fn test_should_not_emit_target() {
         assert!(!should_emit_for_path(&PathBuf::from("/repo/target/debug/build")));
     }
+
+    #[test]
+    fn test_should_not_emit_nested_target() {
+        assert!(!should_emit_for_path(&PathBuf::from("/workspace/crate/target/release/output")));
+    }
+
+    #[test]
+    fn test_should_not_emit_nested_node_modules() {
+        assert!(!should_emit_for_path(&PathBuf::from("/repo/packages/ui/node_modules/react/index.js")));
+    }
+
+    #[test]
+    fn test_should_emit_git_dir_itself() {
+        assert!(should_emit_for_path(&PathBuf::from("/repo/.git")));
+    }
+
+    #[test]
+    fn test_should_emit_regular_dot_files() {
+        assert!(should_emit_for_path(&PathBuf::from("/repo/.gitignore")));
+    }
+
+    #[test]
+    fn test_should_emit_deeply_nested_source() {
+        assert!(should_emit_for_path(&PathBuf::from("/repo/src/deep/nested/module/file.rs")));
+    }
 }
