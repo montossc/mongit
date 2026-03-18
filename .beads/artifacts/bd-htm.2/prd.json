@@ -1,0 +1,71 @@
+{
+	"beadId": "bd-htm.2",
+	"prdName": "watcher-lifecycle-debounce",
+	"tasks": [
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"title": "Harden watcher lifecycle contract",
+			"description": "Refine watch_repo and stop_watching so backend watcher ownership, replacement, stop semantics, filtering, and coarse event emission remain predictable under repo switches and edit bursts.",
+			"steps": [
+				"cargo check",
+				"Inspect src-tauri/src/watcher.rs and confirm watcher lifecycle ownership stays in Rust, not frontend refresh code",
+				"Manually use /spike-d watcher monitor and confirm starting, switching, and stopping watching behaves predictably for a real repo"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/watcher.rs", "src-tauri/src/lib.rs"]
+			}
+		},
+		{
+			"id": "backend-2",
+			"category": "backend",
+			"title": "Add watcher lifecycle and debounce tests",
+			"description": "Extend Rust test coverage so path filtering, replacement, stop behavior, and debounced coarse-event semantics are verified by automated tests.",
+			"steps": [
+				"cargo test watcher --lib",
+				"Confirm tests cover suppressed paths, allowed .git paths, and lifecycle stop/replace behavior",
+				"Confirm no frontend refresh wiring was introduced while adding watcher verification coverage"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["Harden watcher lifecycle contract"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/watcher.rs"]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Watcher state ownership: src-tauri/src/watcher.rs:11-15",
+			"Path filtering rules: src-tauri/src/watcher.rs:23-49",
+			"Debounce + event emission: src-tauri/src/watcher.rs:68-85",
+			"Tauri state registration: src-tauri/src/lib.rs:10-26",
+			"Diagnostic event listener: src/lib/components/WatcherMonitor.svelte:18-22"
+		],
+		"keyFiles": [
+			"src-tauri/src/watcher.rs",
+			"src-tauri/src/lib.rs",
+			"src/lib/components/WatcherMonitor.svelte",
+			"src/lib/stores/watcher.svelte.ts"
+		],
+		"nonGoals": [
+			"Frontend listener/store targeted refresh logic",
+			"Enriching repo-changed payload for UI routing",
+			"Diff fetching and changed-file list rendering",
+			"Multi-repo watching",
+			"Staging/conflict actions"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": [],
+		"parallel": false,
+		"conflicts_with": [],
+		"blocks": ["bd-htm.3"],
+		"estimated_hours": 3
+	}
+}

@@ -1,0 +1,16 @@
+# Progress Log
+
+Bead: bd-htm.1
+Started: 2026-03-17
+
+## Codebase Patterns
+
+- MergeView creation: DiffViewer.svelte:170-190 (destroy-before-create, collapseUnchanged margin:3)
+- Svelte action lifecycle: codemirror.ts returns {update(), destroy()}
+- Extension composition: baseExtensions() + languageExtension(filename) + theme + readOnly
+- Theme tokens: mongitTheme uses CSS vars for diff colors (.cm-changedLine, .cm-deletedChunk)
+- Spike dashboard: spike-d/+page.svelte uses tabbed layout with Cmd+1-4 shortcuts
+
+---
+
+<!-- Task logs below - APPEND ONLY -->

@@ -1,0 +1,15 @@
+# Progress Log
+
+Bead: bd-htm.3
+Started: 2026-03-17
+
+## Codebase Patterns
+
+- Main route load controller ownership: `src/routes/+page.svelte:44-71`
+- Main route Tauri lifecycle and cleanup guards: `src/routes/+page.svelte:27-42`
+- Event subscription cleanup pattern: `src/lib/components/WatcherMonitor.svelte:18-26`
+- Watcher store remains diagnostic-oriented by default: `src/lib/stores/watcher.svelte.ts:16-36`
+
+---
+
+<!-- Task logs below - APPEND ONLY -->

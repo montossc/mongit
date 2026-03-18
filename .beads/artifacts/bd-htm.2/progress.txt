@@ -1,0 +1,16 @@
+# Progress Log
+
+Bead: bd-htm.2
+Started: 2026-03-17
+
+## Codebase Patterns
+
+- Watcher state ownership in Tauri state: `src-tauri/src/watcher.rs:11-15`
+- Debounce + coarse event emission: `src-tauri/src/watcher.rs:68-85`
+- Path filtering contract: `src-tauri/src/watcher.rs:23-49`
+- Watcher command registration: `src-tauri/src/lib.rs:10-26`
+- Diagnostic listener (manual validation only): `src/lib/components/WatcherMonitor.svelte:18-22`
+
+---
+
+<!-- Task logs below - APPEND ONLY -->

@@ -2,14 +2,13 @@ mod commands;
 mod git;
 mod watcher;
 
-use std::sync::Mutex;
-use watcher::WatcherHandle;
+use watcher::WatcherState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .manage(Mutex::new(None::<WatcherHandle>))
+        .manage(WatcherState::default())
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::get_repo_status,
