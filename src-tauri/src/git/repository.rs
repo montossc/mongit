@@ -50,6 +50,13 @@ pub struct DiffFileEntry {
     pub hunks: Vec<DiffHunkInfo>,
 }
 
+/// Pair of file contents for diff rendering: original (from HEAD) and modified (from working tree).
+#[derive(Debug, Clone, Serialize)]
+pub struct FileContentPair {
+    pub original: String,
+    pub modified: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct CommitInfo {
     pub id: String,
@@ -116,6 +123,9 @@ pub trait GitRepository: Send + Sync {
 
     /// Current branch name (None if detached HEAD or unborn).
     fn current_branch(&self) -> Result<Option<String>, GitError>;
+
+    /// Get original (HEAD) and modified (working tree) content for a file.
+    fn file_content_for_diff(&self, file_path: &str) -> Result<FileContentPair, GitError>;
 }
 
 // ── Git2Repository (git2 read implementation) ───────────────────────────
@@ -421,5 +431,153 @@ impl GitRepository for Git2Repository {
         };
 
         Ok(head.shorthand().map(|name| name.to_string()))
+    }
+
+    fn file_content_for_diff(&self, file_path: &str) -> Result<FileContentPair, GitError> {
+        let repo = self.repo()?;
+
+        // Validate that file_path stays within the repo (defense-in-depth)
+        let full_path = self.path.join(file_path).canonicalize().unwrap_or_else(|_| self.path.join(file_path));
+        let repo_root = self.path.canonicalize().unwrap_or_else(|_| self.path.clone());
+        if !full_path.starts_with(&repo_root) {
+            return Err(GitError::InvalidArgument(format!(
+                "Path '{}' escapes repository root",
+                file_path
+            )));
+        }
+
+        // Read modified content from working directory
+        let modified = if full_path.exists() {
+            std::fs::read_to_string(&full_path).unwrap_or_default()
+        } else {
+            String::new() // Deleted file
+        };
+
+        // Read original content from HEAD tree
+        let original = match repo.head() {
+            Ok(head) => {
+                let tree = head.peel_to_tree()?;
+                match tree.get_path(Path::new(file_path)) {
+                    Ok(entry) => {
+                        let blob = repo.find_blob(entry.id())?;
+                        String::from_utf8_lossy(blob.content()).to_string()
+                    }
+                    Err(_) => String::new(), // New/untracked file
+                }
+            }
+            Err(_) => String::new(), // No HEAD (empty repo)
+        };
+
+        Ok(FileContentPair { original, modified })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+
+    /// Helper to create a temporary git repo with a committed file and a working-tree change.
+    fn setup_repo_with_change() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let path = dir.path();
+
+        // init + initial commit
+        Command::new("git")
+            .args(["init"])
+            .current_dir(path)
+            .output()
+            .expect("git init");
+        Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(path)
+            .output()
+            .expect("git config email");
+        Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(path)
+            .output()
+            .expect("git config name");
+
+        std::fs::write(path.join("hello.txt"), "hello world\n").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .output()
+            .expect("git add");
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(path)
+            .output()
+            .expect("git commit");
+
+        // now modify the file
+        std::fs::write(path.join("hello.txt"), "hello world\nmodified line\n").unwrap();
+
+        dir
+    }
+
+    #[test]
+    fn test_diff_workdir_detects_modified_file() {
+        let dir = setup_repo_with_change();
+        let repo = Git2Repository::open(dir.path());
+        let entries = repo.diff_workdir().expect("diff_workdir should succeed");
+
+        assert_eq!(entries.len(), 1, "should detect exactly one changed file");
+        assert_eq!(entries[0].path, "hello.txt");
+        assert!(matches!(entries[0].status, DiffFileStatus::Modified));
+        assert!(!entries[0].hunks.is_empty(), "should have at least one hunk");
+
+        let lines = &entries[0].hunks[0].lines;
+        let added_lines: Vec<_> = lines.iter().filter(|l| l.origin == '+').collect();
+        assert!(!added_lines.is_empty(), "should have added lines");
+    }
+
+    #[test]
+    fn test_diff_workdir_detects_new_untracked_file() {
+        let dir = setup_repo_with_change();
+        std::fs::write(dir.path().join("new-file.txt"), "brand new\n").unwrap();
+
+        let repo = Git2Repository::open(dir.path());
+        let entries = repo.diff_workdir().expect("diff_workdir should succeed");
+
+        let new_file = entries.iter().find(|e| e.path == "new-file.txt");
+        assert!(new_file.is_some(), "should detect untracked file");
+    }
+
+    #[test]
+    fn test_diff_workdir_empty_when_clean() {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let path = dir.path();
+
+        Command::new("git").args(["init"]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        std::fs::write(path.join("file.txt"), "content\n").unwrap();
+        Command::new("git").args(["add", "."]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+
+        let repo = Git2Repository::open(path);
+        let entries = repo.diff_workdir().expect("diff_workdir should succeed");
+        assert!(entries.is_empty(), "clean repo should have no diff entries");
+    }
+
+    #[test]
+    fn test_diff_workdir_invalid_path_returns_error() {
+        let repo = Git2Repository::open("/nonexistent/repo/path");
+        let result = repo.diff_workdir();
+        assert!(result.is_err(), "invalid path should return error");
     }
 }
