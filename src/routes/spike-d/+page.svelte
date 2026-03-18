@@ -1,25 +1,177 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-	import DiffViewer from '$lib/components/DiffViewer.svelte';
+	import DiffViewer, { type DiffViewerState } from '$lib/components/DiffViewer.svelte';
 	import MergeEditor from '$lib/components/MergeEditor.svelte';
 	import WatcherMonitor from '$lib/components/WatcherMonitor.svelte';
 	import BenchmarkPanel from '$lib/components/BenchmarkPanel.svelte';
-	import { diffStore, type DiffFileStatus } from '$lib/stores/diff.svelte';
-	import { watcherStore } from '$lib/stores/watcher.svelte';
+
+	// ── Sample diff data (callers own state, not DiffViewer) ────────────
+
+	const SAMPLE_FILE_NAME = 'src/lib/utils/build-graph-layout.ts';
+
+	const SAMPLE_ORIGINAL = `type Node = {
+	id: string;
+	parents: string[];
+	author: string;
+	timestamp: number;
+	branch: string;
+};
+
+type Point = {
+	x: number;
+	y: number;
+};
+
+export type GraphLayout = {
+	lanes: Map<string, number>;
+	positions: Map<string, Point>;
+	maxLane: number;
+};
+
+export function buildGraphLayout(nodes: Node[]): GraphLayout {
+	const lanes = new Map<string, number>();
+	const positions = new Map<string, Point>();
+	const activeLanes: string[] = [];
+	let nextLane = 0;
+	let maxLane = 0;
+
+	for (let index = 0; index < nodes.length; index += 1) {
+		const node = nodes[index];
+		let lane = activeLanes.indexOf(node.id);
+
+		if (lane === -1) {
+			lane = nextLane;
+			activeLanes[lane] = node.id;
+			nextLane += 1;
+		}
+
+		lanes.set(node.id, lane);
+		positions.set(node.id, {
+			x: lane * 24 + 16,
+			y: index * 28 + 20
+		});
+
+		for (const parentId of node.parents) {
+			const parentLane = activeLanes.indexOf(parentId);
+			if (parentLane === -1) {
+				activeLanes[lane] = parentId;
+			} else if (parentLane !== lane) {
+				activeLanes[parentLane] = activeLanes[lane];
+				activeLanes[lane] = parentId;
+			}
+		}
+
+		maxLane = Math.max(maxLane, lane);
+	}
+
+	return { lanes, positions, maxLane };
+}`;
+
+	const SAMPLE_MODIFIED = `type Node = {
+	id: string;
+	parents: string[];
+	author: string;
+	timestamp: number;
+	branch: string;
+	isHead?: boolean;
+};
+
+type Point = {
+	x: number;
+	y: number;
+};
+
+export type GraphLayout = {
+	lanes: Map<string, number>;
+	positions: Map<string, Point>;
+	maxLane: number;
+	laneWidth: number;
+};
+
+const LANE_WIDTH = 26;
+const ROW_HEIGHT = 30;
+const OFFSET_X = 18;
+const OFFSET_Y = 22;
+
+export function buildGraphLayout(nodes: Node[]): GraphLayout {
+	const lanes = new Map<string, number>();
+	const positions = new Map<string, Point>();
+	const activeLanes: string[] = [];
+	let nextLane = 0;
+	let maxLane = 0;
+
+	for (let index = 0; index < nodes.length; index += 1) {
+		const node = nodes[index];
+		let lane = activeLanes.indexOf(node.id);
+
+		if (lane < 0) {
+			lane = nextLane;
+			activeLanes[lane] = node.id;
+			nextLane += 1;
+		}
+
+		lanes.set(node.id, lane);
+		positions.set(node.id, {
+			x: lane * LANE_WIDTH + OFFSET_X,
+			y: index * ROW_HEIGHT + OFFSET_Y
+		});
+
+		for (const parentId of node.parents) {
+			const parentLane = activeLanes.indexOf(parentId);
+			if (parentLane < 0) {
+				activeLanes[lane] = parentId;
+				continue;
+			}
+
+			if (parentLane !== lane) {
+				activeLanes[parentLane] = activeLanes[lane];
+				activeLanes[lane] = parentId;
+			}
+		}
+
+		maxLane = Math.max(maxLane, lane);
+	}
+
+	return { lanes, positions, maxLane, laneWidth: LANE_WIDTH };
+}`;
+
+	// ── Shell state harness ────────────────────────────────────────────
+
+	const shellStates = ['loading', 'empty', 'error', 'ready'] as const;
+	type ShellStateKind = (typeof shellStates)[number];
+
+	let activeShellState = $state<ShellStateKind>('ready');
+
+	const diffView = $derived.by<DiffViewerState>(() => {
+		switch (activeShellState) {
+			case 'loading':
+				return { kind: 'loading' };
+			case 'empty':
+				return { kind: 'empty', message: 'No working tree changes detected' };
+			case 'error':
+				return { kind: 'error', message: 'Failed to parse diff: invalid hunk header at line 42' };
+			case 'ready':
+				return {
+					kind: 'ready',
+					original: SAMPLE_ORIGINAL,
+					modified: SAMPLE_MODIFIED,
+					filename: SAMPLE_FILE_NAME
+				};
+		}
+	});
+
+	// ── Tabs ────────────────────────────────────────────────────────────
 
 	const tabs = [
 		{ id: 'diff', label: 'Diff Viewer' },
 		{ id: 'merge', label: 'Merge Editor' },
 		{ id: 'watcher', label: 'File Watcher' },
-		{ id: 'benchmarks', label: 'Benchmarks' }
+		{ id: 'benchmarks', label: 'Benchmarks' },
 	] as const;
 
 	type TabId = (typeof tabs)[number]['id'];
 
 	let activeTab = $state<TabId>('diff');
-	let repoPathInput = $state('');
-	let unlistenRepoChanged: UnlistenFn | null = null;
 
 	function selectTab(id: TabId) {
 		activeTab = id;
@@ -36,66 +188,12 @@
 		}
 	}
 
-	async function loadDiff() {
-		const path = repoPathInput.trim();
-		if (!path) return;
-		const loaded = await diffStore.fetchDiff(path);
-		if (!loaded) {
-			if (watcherStore.watching && watcherStore.repoPath === path) {
-				await watcherStore.stopWatching();
-			}
-			return;
-		}
-		// Auto-start watcher for the same repo so changes are detected
-		if (!watcherStore.watching || watcherStore.repoPath !== path) {
-			await watcherStore.startWatching(path);
-		}
-	}
-
-	function statusIcon(status: DiffFileStatus): string {
-		switch (status) {
-			case 'Added':
-				return 'A';
-			case 'Modified':
-				return 'M';
-			case 'Deleted':
-				return 'D';
-			case 'Renamed':
-				return 'R';
-			default:
-				return '?';
-		}
-	}
-
-	function statusClass(status: DiffFileStatus): string {
-		switch (status) {
-			case 'Added':
-				return 'status-added';
-			case 'Deleted':
-				return 'status-deleted';
-			default:
-				return 'status-modified';
-		}
-	}
-
-	onMount(async () => {
+	onMount(() => {
 		window.addEventListener('keydown', handleKeydown);
-		// Listen for watcher repo-changed events → scoped diff refresh
-		unlistenRepoChanged = await listen('repo-changed', () => {
-			// Only refresh if the watcher is active for the same repo the diff is showing
-			if (diffStore.repoPath && watcherStore.watching && watcherStore.repoPath === diffStore.repoPath) {
-				diffStore.refresh();
-			}
-		});
 	});
 
 	onDestroy(() => {
 		window.removeEventListener('keydown', handleKeydown);
-		unlistenRepoChanged?.();
-		unlistenRepoChanged = null;
-		if (watcherStore.watching && watcherStore.repoPath === diffStore.repoPath) {
-			void watcherStore.stopWatching();
-		}
 	});
 </script>
 
@@ -104,7 +202,7 @@
 		<div class="header-left">
 			<a href="/" class="back-link">&larr; Back</a>
 			<h1 class="spike-title">Spike D — CodeMirror 6 + File Watcher</h1>
-			<span class="spike-badge">bd-htm</span>
+			<span class="spike-badge">bd-2n2</span>
 		</div>
 	</header>
 
@@ -126,75 +224,21 @@
 	<div class="tab-content">
 		{#if activeTab === 'diff'}
 			<div class="tab-panel visible" role="tabpanel">
-				<div class="diff-layout">
-					<!-- Sidebar: repo input + file list -->
-					<aside class="diff-sidebar">
-						<div class="repo-input-group">
-							<input
-								type="text"
-								class="repo-input"
-								placeholder="Repository path..."
-								bind:value={repoPathInput}
-								onkeydown={(e) => e.key === 'Enter' && loadDiff()}
-							/>
+				<div class="shell-harness">
+					<div class="state-selector">
+						<span class="state-selector-label">Shell state:</span>
+						{#each shellStates as kind}
 							<button
-								class="load-btn"
-								onclick={loadDiff}
-								disabled={diffStore.loading || !repoPathInput.trim()}
+								class="state-btn"
+								class:active={activeShellState === kind}
+								onclick={() => (activeShellState = kind)}
 							>
-								{diffStore.loading ? 'Loading...' : 'Load'}
+								{kind}
 							</button>
-						</div>
-
-						{#if watcherStore.watching}
-							<div class="watcher-indicator">
-								<span class="watcher-dot"></span>
-								Watching &mdash; auto-refresh on
-							</div>
-						{/if}
-
-						{#if diffStore.error}
-							<div class="diff-error">{diffStore.error}</div>
-						{/if}
-
-						{#if diffStore.files.length > 0}
-							<div class="file-list-header">
-								Changed files ({diffStore.files.length})
-							</div>
-							<ul class="file-list">
-								{#each diffStore.files as file}
-									<li>
-										<button
-											class="file-item"
-											class:selected={diffStore.selectedPath === file.path}
-											onclick={() => diffStore.selectFile(file.path)}
-										>
-											<span class="file-status {statusClass(file.status)}"
-												>{statusIcon(file.status)}</span
-											>
-											<span class="file-path">{file.path}</span>
-										</button>
-									</li>
-								{/each}
-							</ul>
-						{:else if !diffStore.loading && diffStore.repoPath}
-							<div class="diff-empty-msg">No changed files</div>
-						{/if}
-					</aside>
-
-					<!-- Main: diff viewer -->
-					<div class="diff-main">
-						{#if diffStore.loadingContent}
-							<div class="diff-loading">Loading diff...</div>
-						{:else if diffStore.content && diffStore.selectedPath}
-							<DiffViewer
-								original={diffStore.content.original}
-								modified={diffStore.content.modified}
-								filename={diffStore.selectedPath}
-							/>
-						{:else}
-							<DiffViewer />
-						{/if}
+						{/each}
+					</div>
+					<div class="diff-area">
+						<DiffViewer view={diffView} />
 					</div>
 				</div>
 			</div>
@@ -341,179 +385,62 @@
 		display: block;
 	}
 
-	/* ── Diff layout: sidebar + main ──────────────────────────────── */
-
-	.diff-layout {
-		display: flex;
-		height: 100%;
-	}
-
-	.diff-sidebar {
-		width: 280px;
-		min-width: 200px;
-		border-right: 1px solid var(--color-border);
+	/* Shell state harness */
+	.shell-harness {
 		display: flex;
 		flex-direction: column;
-		background: var(--color-bg-surface);
-		overflow-y: auto;
+		height: 100%;
+		gap: 0;
 	}
 
-	.repo-input-group {
-		display: flex;
-		gap: var(--space-2);
-		padding: var(--space-3);
-		border-bottom: 1px solid var(--color-border);
-	}
-
-	.repo-input {
-		flex: 1;
-		font-family: var(--font-mono);
-		font-size: 11px;
-		padding: var(--space-2) var(--space-3);
-		background: var(--color-bg);
-		color: var(--color-text-primary);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		outline: none;
-	}
-
-	.repo-input:focus {
-		border-color: var(--color-accent);
-	}
-
-	.load-btn {
-		font-family: var(--font-sans);
-		font-size: 11px;
-		font-weight: 500;
-		padding: var(--space-2) var(--space-3);
-		background: var(--color-accent);
-		color: white;
-		border: none;
-		border-radius: var(--radius-sm);
-		cursor: pointer;
-		white-space: nowrap;
-	}
-
-	.load-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.watcher-indicator {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		padding: var(--space-2) var(--space-3);
-		font-size: 10px;
-		color: var(--color-diff-added-text);
-		background: var(--color-bg);
-		border-bottom: 1px solid var(--color-border);
-	}
-
-	.watcher-dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: var(--color-diff-added-text);
-		animation: pulse 2s ease-in-out infinite;
-	}
-
-	@keyframes pulse {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0.4; }
-	}
-
-	.diff-error {
-		padding: var(--space-3);
-		font-size: 11px;
-		color: var(--color-diff-removed-text);
-		background: var(--color-bg);
-	}
-
-	.file-list-header {
-		padding: var(--space-3);
-		font-size: 11px;
-		font-weight: 600;
-		color: var(--color-text-secondary);
-		border-bottom: 1px solid var(--color-border);
-	}
-
-	.file-list {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-	}
-
-	.file-item {
+	.state-selector {
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
-		width: 100%;
-		padding: var(--space-2) var(--space-3);
-		font-size: 11px;
-		background: transparent;
-		border: none;
-		color: var(--color-text-primary);
-		cursor: pointer;
-		text-align: left;
-		transition: background var(--transition-fast);
-	}
-
-	.file-item:hover {
-		background: var(--color-bg-hover);
-	}
-
-	.file-item.selected {
-		background: var(--color-accent-muted);
-	}
-
-	.file-status {
-		font-family: var(--font-mono);
-		font-size: 10px;
-		font-weight: 700;
-		width: 16px;
-		text-align: center;
+		padding: var(--space-3) var(--space-4);
+		background: var(--color-bg-elevated);
+		border-bottom: 1px solid var(--color-border);
 		flex-shrink: 0;
 	}
 
-	.status-added {
-		color: var(--color-diff-added-text);
-	}
-
-	.status-deleted {
-		color: var(--color-diff-removed-text);
-	}
-
-	.status-modified {
-		color: var(--color-accent);
-	}
-
-	.file-path {
+	.state-selector-label {
 		font-family: var(--font-mono);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.diff-empty-msg {
-		padding: var(--space-4);
-		font-size: 12px;
+		font-size: 11px;
 		color: var(--color-text-muted);
-		text-align: center;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
 	}
 
-	.diff-main {
+	.state-btn {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		color: var(--color-text-secondary);
+		background: var(--color-bg-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: var(--space-1) var(--space-3);
+		cursor: pointer;
+		transition:
+			color var(--transition-fast),
+			background var(--transition-fast),
+			border-color var(--transition-fast);
+	}
+
+	.state-btn:hover {
+		color: var(--color-text-primary);
+		background: var(--color-bg-hover);
+	}
+
+	.state-btn.active {
+		color: var(--color-accent);
+		background: var(--color-accent-muted);
+		border-color: var(--color-accent);
+	}
+
+	.diff-area {
 		flex: 1;
-		min-width: 0;
+		min-height: 0;
+		overflow: auto;
 		padding: var(--space-4);
-	}
-
-	.diff-loading {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		color: var(--color-text-muted);
-		font-size: 13px;
 	}
 </style>

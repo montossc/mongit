@@ -1,0 +1,70 @@
+{
+	"beadId": "bd-htm.3",
+	"prdName": "tauri-event-bridge-targeted-ui-refresh",
+	"tasks": [
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"title": "Add main-route event bridge",
+			"description": "Wire repo-changed into the main repo route so the route refreshes its repo-backed graph/status state for the currently open repository.",
+			"steps": [
+				"pnpm check",
+				"Inspect src/routes/+page.svelte and confirm the route subscribes to repo-changed with cleanup and reuses its existing repo load controller",
+				"Manually load a real repo, start watching it, edit a tracked file, and confirm the graph route refreshes without pressing Open again"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/routes/+page.svelte"]
+			}
+		},
+		{
+			"id": "frontend-2",
+			"category": "frontend",
+			"title": "Add scoped refresh guards",
+			"description": "Harden the main-route refresh path so watcher-driven updates are ignored in synthetic or non-Tauri mode and do not fall back to blunt global invalidation.",
+			"steps": [
+				"pnpm check",
+				"Inspect affected files and confirm there is no invalidateAll, full-page reload, or spike-d-first refresh path introduced",
+				"Confirm synthetic-data mode remains usable without watcher events forcing repo-backed reloads"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["Add main-route event bridge"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/routes/+page.svelte", "src/lib/stores/watcher.svelte.ts"]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Event listener cleanup pattern: src/lib/components/WatcherMonitor.svelte:18-26",
+			"Main route load controller: src/routes/+page.svelte:44-71",
+			"Main route Tauri lifecycle guards: src/routes/+page.svelte:27-42",
+			"Watcher diagnostic store boundary: src/lib/stores/watcher.svelte.ts:16-36"
+		],
+		"keyFiles": [
+			"src/routes/+page.svelte",
+			"src/lib/components/WatcherMonitor.svelte",
+			"src/lib/stores/watcher.svelte.ts",
+			"src/routes/spike-d/+page.svelte"
+		],
+		"nonGoals": [
+			"Refreshing /spike-d as the primary target",
+			"Backend watcher lifecycle/debounce/filtering changes",
+			"Global app invalidation or reload bus",
+			"Diff fetching and changed-file selection workflows",
+			"Staging/conflict workflow integration"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-htm.1", "bd-htm.2"],
+		"parallel": false,
+		"conflicts_with": [],
+		"blocks": [],
+		"estimated_hours": 3
+	}
+}

@@ -1,126 +1,123 @@
+<script module lang="ts">
+	/**
+	 * Discriminated union for DiffViewer shell states.
+	 * Callers own the state; the component renders accordingly.
+	 */
+	export type DiffViewerState =
+		| { kind: 'loading' }
+		| { kind: 'empty'; message?: string }
+		| { kind: 'error'; message: string }
+		| { kind: 'ready'; original: string; modified: string; filename: string };
+</script>
+
 <script lang="ts">
 	import { EditorState } from '@codemirror/state';
 	import { MergeView } from '@codemirror/merge';
-	import { onDestroy, onMount } from 'svelte';
 	import { baseExtensions, languageExtension } from '$lib/utils/codemirror-config';
 	import { mongitTheme } from '$lib/utils/codemirror-theme';
 
 	type DiffViewerProps = {
-		original?: string;
-		modified?: string;
-		filename?: string;
+		view: DiffViewerState;
 	};
 
-	let {
-		original = '',
-		modified = '',
-		filename = ''
-	}: DiffViewerProps = $props();
+	let { view }: DiffViewerProps = $props();
 
 	let container = $state<HTMLDivElement | null>(null);
-	let mergeView: MergeView | null = null;
-	let mounted = false;
-
-	const hasContent = $derived(filename !== '');
+	let renderError = $state<string | null>(null);
 
 	const stats = $derived.by(() => {
-		if (!hasContent) return { original: 0, modified: 0, added: 0, removed: 0 };
-
-		const originalLines = original.split('\n');
-		const modifiedLines = modified.split('\n');
+		if (view.kind !== 'ready') return null;
+		const originalLines = view.original.split('\n');
+		const modifiedLines = view.modified.split('\n');
 		const originalSet = new Set(originalLines);
 		const modifiedSet = new Set(modifiedLines);
-		const removed = originalLines.filter((line: string) => !modifiedSet.has(line)).length;
-		const added = modifiedLines.filter((line: string) => !originalSet.has(line)).length;
-
 		return {
 			original: originalLines.length,
 			modified: modifiedLines.length,
-			added,
-			removed
+			added: modifiedLines.filter((line) => !originalSet.has(line)).length,
+			removed: originalLines.filter((line) => !modifiedSet.has(line)).length
 		};
 	});
 
-	function destroyMergeView() {
-		mergeView?.destroy();
-		mergeView = null;
-	}
-
-	function createMergeView() {
-		if (!container || !hasContent) return;
-
-		destroyMergeView();
+	/**
+	 * Single $effect manages the full MergeView lifecycle:
+	 * - Creates MergeView when view is 'ready' and container exists
+	 * - Cleanup destroys the view on re-run, state change, or unmount
+	 * - No separate onMount/onDestroy needed
+	 */
+	$effect(() => {
+		renderError = null;
+		if (view.kind !== 'ready' || !container) return;
 
 		const extensions = [
 			...baseExtensions(),
-			...languageExtension(filename),
+			...languageExtension(view.filename),
 			mongitTheme,
 			EditorState.readOnly.of(true)
 		];
 
-		mergeView = new MergeView({
-			parent: container,
-			a: { doc: original, extensions },
-			b: { doc: modified, extensions },
-			gutter: true,
-			highlightChanges: true,
-			revertControls: 'a-to-b',
-			collapseUnchanged: { margin: 3, minSize: 8 }
-		});
-	}
+		try {
+			const mv = new MergeView({
+				parent: container,
+				a: { doc: view.original, extensions },
+				b: { doc: view.modified, extensions },
+				gutter: true,
+				highlightChanges: true,
+				revertControls: 'a-to-b',
+				collapseUnchanged: { margin: 3, minSize: 8 }
+			});
 
-	onMount(() => {
-		mounted = true;
-		if (hasContent) {
-			createMergeView();
+			return () => mv.destroy();
+		} catch (e) {
+			renderError = e instanceof Error ? e.message : String(e);
 		}
-	});
-
-	$effect(() => {
-		if (!mounted) return;
-		original;
-		modified;
-		filename;
-		if (hasContent) {
-			createMergeView();
-		} else {
-			destroyMergeView();
-		}
-	});
-
-	onDestroy(() => {
-		destroyMergeView();
 	});
 </script>
 
-{#if !hasContent}
-	<div class="diff-empty">
-		<p>Select a changed file to view its diff</p>
+{#if view.kind === 'loading'}
+	<div class="diff-viewer">
+		<div class="diff-placeholder">
+			<div class="diff-spinner"></div>
+			<span class="diff-placeholder-text">Loading diff&hellip;</span>
+		</div>
+	</div>
+{:else if view.kind === 'empty'}
+	<div class="diff-viewer">
+		<div class="diff-placeholder">
+			<span class="diff-placeholder-text">{view.message ?? 'No changes to display'}</span>
+		</div>
+	</div>
+{:else if view.kind === 'error'}
+	<div class="diff-viewer">
+		<div class="diff-placeholder diff-error">
+			<span class="diff-error-label">Error</span>
+			<span class="diff-placeholder-text">{view.message}</span>
+		</div>
 	</div>
 {:else}
 	<div class="diff-viewer">
 		<header class="diff-header">
-			<div class="diff-file">{filename}</div>
-			<div class="diff-stats">
-				<span>{stats.original} → {stats.modified} lines</span>
-				<span class="added">+{stats.added}</span>
-				<span class="removed">-{stats.removed}</span>
-			</div>
+			<div class="diff-file">{view.filename}</div>
+			{#if stats}
+				<div class="diff-stats">
+					<span>{stats.original} &rarr; {stats.modified} lines</span>
+					<span class="added">+{stats.added}</span>
+					<span class="removed">-{stats.removed}</span>
+				</div>
+			{/if}
 		</header>
-		<div class="diff-container" bind:this={container}></div>
+		{#if renderError}
+			<div class="diff-placeholder diff-error">
+				<span class="diff-error-label">Render Error</span>
+				<span class="diff-placeholder-text">{renderError}</span>
+			</div>
+		{:else}
+			<div class="diff-container" bind:this={container}></div>
+		{/if}
 	</div>
 {/if}
 
 <style>
-	.diff-empty {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		color: var(--color-text-muted);
-		font-size: 13px;
-	}
-
 	.diff-viewer {
 		display: flex;
 		flex-direction: column;
@@ -137,7 +134,6 @@
 		border-radius: var(--radius-md);
 		background: var(--color-bg-surface);
 		font-size: 12px;
-		flex-shrink: 0;
 	}
 
 	.diff-file {
@@ -160,8 +156,7 @@
 	}
 
 	.diff-container {
-		flex: 1;
-		min-height: 0;
+		height: 100%;
 		overflow: auto;
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
@@ -175,5 +170,51 @@
 
 	:global(.cm-editor) {
 		height: 100%;
+	}
+
+	/* Fallback states */
+	.diff-placeholder {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		height: 100%;
+		gap: var(--space-4);
+		padding: var(--space-8);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-bg-surface);
+	}
+
+	.diff-placeholder-text {
+		font-size: 13px;
+		color: var(--color-text-secondary);
+	}
+
+	.diff-error {
+		border-color: var(--color-diff-removed-text);
+	}
+
+	.diff-error-label {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--color-diff-removed-text);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.diff-spinner {
+		width: 20px;
+		height: 20px;
+		border: 2px solid var(--color-border);
+		border-top-color: var(--color-accent);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 </style>

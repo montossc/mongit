@@ -23,12 +23,46 @@
 	let isTauri = $state(false);
 	let commitCount = $state(0);
 	let syntheticCount = $state(1000);
+	let unlistenRepoChanged: (() => void) | undefined;
+	let pendingRepoRefreshPath = $state<string | null>(null);
+	let loadedRepoPath = $state('');
+	let inFlightRepoPath = $state<string | null>(null);
+	let usingSyntheticData = $state(false);
 
 	onMount(() => {
+		let mounted = true;
 		isTauri = '__TAURI_INTERNALS__' in window;
 		if (isTauri) {
 			repoPath = '.';
 		}
+
+		async function setupRepoChangedListener() {
+			if (!isTauri) return;
+			const { listen } = await import('@tauri-apps/api/event');
+			const unlisten = await listen<void>('repo-changed', () => {
+				if (!isTauri) return;
+				if (usingSyntheticData) return;
+				if (loading) {
+					if (inFlightRepoPath) {
+						pendingRepoRefreshPath = inFlightRepoPath;
+					}
+					return;
+				}
+				if (!loadedRepoPath) {
+					return;
+				}
+				void loadRepo(loadedRepoPath);
+			});
+
+			if (!mounted) {
+				unlisten();
+				return;
+			}
+
+			unlistenRepoChanged = unlisten;
+		}
+
+		void setupRepoChangedListener();
 
 		function handleGlobalKeydown(e: KeyboardEvent) {
 			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
@@ -38,27 +72,32 @@
 		}
 
 		window.addEventListener('keydown', handleGlobalKeydown);
-		return () => window.removeEventListener('keydown', handleGlobalKeydown);
+		return () => {
+			mounted = false;
+			window.removeEventListener('keydown', handleGlobalKeydown);
+			unlistenRepoChanged?.();
+		};
 	});
 
-	async function loadRepo() {
-		if (!repoPath.trim()) return;
+	async function loadRepo(path = repoPath.trim()) {
+		if (!path.trim()) return;
+		if (!isTauri) return;
 		error = null;
+		const currentPath = path.trim();
+		pendingRepoRefreshPath = null;
+		inFlightRepoPath = currentPath;
 		loading = true;
 
 		try {
-			if (!isTauri) {
-				error = 'Tauri IPC not available — use synthetic data for testing.';
-				loading = false;
-				return;
-			}
-
 			const { invoke } = await import('@tauri-apps/api/core');
 			const [commits, refs] = await Promise.all([
-				invoke<CommitData[]>('get_commit_log', { path: repoPath, max_count: 10000 }),
-				invoke<RefData[]>('get_refs', { path: repoPath })
+				invoke<CommitData[]>('get_commit_log', { path: currentPath, max_count: 10000 }),
+				invoke<RefData[]>('get_refs', { path: currentPath })
 			]);
 
+			usingSyntheticData = false;
+			loadedRepoPath = currentPath;
+			repoPath = currentPath;
 			commitCount = commits.length;
 			layout = assignLanes(commits, refs);
 			selectedNode = null;
@@ -67,12 +106,23 @@
 			layout = null;
 		} finally {
 			loading = false;
+			inFlightRepoPath = null;
+			if (pendingRepoRefreshPath && pendingRepoRefreshPath === loadedRepoPath) {
+				const refreshPath = pendingRepoRefreshPath;
+				pendingRepoRefreshPath = null;
+				void loadRepo(refreshPath);
+			} else {
+				pendingRepoRefreshPath = null;
+			}
 		}
 	}
 
 	function loadSyntheticData() {
 		error = null;
 		loading = true;
+		usingSyntheticData = true;
+		loadedRepoPath = '';
+		pendingRepoRefreshPath = null;
 
 		try {
 			const commits = generateSyntheticCommits(syntheticCount, 5);
@@ -150,7 +200,7 @@
 						placeholder="Repository path..."
 						onkeydown={(e) => e.key === 'Enter' && loadRepo()}
 					/>
-					<button class="btn btn-primary" onclick={loadRepo} disabled={loading}>
+					<button class="btn btn-primary" onclick={() => loadRepo()} disabled={loading}>
 						{loading ? 'Loading...' : 'Open'}
 					</button>
 				</div>
