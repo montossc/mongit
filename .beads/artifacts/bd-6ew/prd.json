@@ -1,0 +1,114 @@
+{
+	"beadId": "bd-6ew",
+	"prdName": "repo-home-navigation-shell",
+	"tasks": [
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"description": "Ship the home-route entry flow and shared repo open lifecycle so users can open repos, persist recents, and recover from stale recent paths through a single product surface.",
+			"steps": [
+				"pnpm check",
+				"cargo check",
+				"Manual app check: open a valid repo from / using picker, typed path, and drag-drop",
+				"Manual app check: reopen app and confirm recent repos persist",
+				"Manual app check: invalidate a recent path and confirm retry/remove behavior"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/+page.svelte",
+					"src/lib/stores/repo.svelte.ts",
+					"src-tauri/src/commands.rs",
+					"src-tauri/src/recents.rs"
+				]
+			}
+		},
+		{
+			"id": "ui-1",
+			"category": "ui",
+			"description": "Ship the /repo workspace shell and default landing summary so users immediately see repo identity and working-tree context after opening a repository.",
+			"steps": [
+				"pnpm check",
+				"pnpm build",
+				"Manual app check: opening a repo routes into /repo",
+				"Manual app check: /repo shows repo name/path, branch or detached state, changed count, staged count, and working-tree messaging"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["Repo selection and persistence baseline"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/repo/+layout.svelte",
+					"src/routes/repo/+page.svelte",
+					"src/lib/stores/repo.svelte.ts"
+				]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Confirm the combined shell baseline is a stable handoff point for later beads by verifying route split, persistence, and orientation behavior together.",
+			"steps": [
+				"pnpm check",
+				"pnpm build",
+				"cargo check",
+				"Manual app check: navigate from home to workspace and back without losing shell integrity",
+				"Manual app check: confirm the shell feels like a product baseline, not a spike launcher"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [
+					"Repo selection and persistence baseline",
+					"Repo workspace orientation shell"
+				],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/+page.svelte",
+					"src/routes/repo/+layout.svelte",
+					"src/routes/repo/+page.svelte",
+					"src/lib/stores/repo.svelte.ts",
+					"src-tauri/src/commands.rs",
+					"src-tauri/src/recents.rs"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Svelte 5 runes stores: src/lib/stores/repo.svelte.ts",
+			"Tauri IPC: invoke() from @tauri-apps/api/core",
+			"Async commands: tokio::task::spawn_blocking in src-tauri/src/commands.rs",
+			"Design tokens: src/app.css"
+		],
+		"keyFiles": [
+			"src/routes/+page.svelte",
+			"src/routes/repo/+layout.svelte",
+			"src/routes/repo/+page.svelte",
+			"src/lib/stores/repo.svelte.ts",
+			"src-tauri/src/commands.rs",
+			"src-tauri/src/recents.rs"
+		],
+		"nonGoals": [
+			"Changes workspace (bd-20d)",
+			"Commit graph productization (bd-145)",
+			"Command palette (bd-268)",
+			"Packaging (bd-1sy)",
+			"Workspace context per branch (bd-d4a)",
+			"Clone/init flows",
+			"Branch switcher UX",
+			"Watcher-driven live refresh"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-1zx"],
+		"parallel": false,
+		"conflicts_with": [],
+		"blocks": ["bd-20d", "bd-145", "bd-1sy", "bd-268", "bd-d4a"],
+		"estimated_hours": 10
+	}
+}

@@ -145,7 +145,7 @@
 		{#if repoStore.error}
 			<div class="error-banner" role="alert">
 				<span class="error-text">{repoStore.error}</span>
-				<button class="error-dismiss" onclick={() => repoStore.clearError()}>
+				<button class="error-dismiss" onclick={() => repoStore.clearError()} aria-label="Dismiss error">
 					✕
 				</button>
 			</div>
