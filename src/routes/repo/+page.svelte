@@ -22,7 +22,7 @@
 					<span class="detached-badge">Detached HEAD</span>
 				{/if}
 			{:else}
-				<span class="status-placeholder">…</span>
+				<span class="status-placeholder" aria-label="Loading branch status">…</span>
 			{/if}
 		</div>
 
@@ -46,12 +46,15 @@
 				class="state-message"
 				class:clean={changed === 0 && staged === 0}
 				class:unstaged={changed > 0 && staged === 0}
-				class:staged={staged > 0}
+				class:partial={changed > 0 && staged > 0}
+				class:staged={changed === 0 && staged > 0}
 			>
 				{#if changed === 0 && staged === 0}
 					Working tree clean
 				{:else if changed > 0 && staged === 0}
 					Unstaged changes
+				{:else if changed > 0 && staged > 0}
+					Partially staged
 				{:else if staged > 0}
 					Ready to commit
 				{/if}
@@ -69,6 +72,7 @@
 		justify-content: center;
 		height: 100%;
 		padding: var(--space-8);
+		overflow-y: auto;
 	}
 
 	.summary {
@@ -153,7 +157,7 @@
 
 	.stat-value {
 		font-size: var(--text-heading-lg-size);
-		font-weight: 700;
+		font-weight: var(--text-heading-lg-weight);
 		color: var(--color-text-primary);
 	}
 
@@ -177,6 +181,10 @@
 
 	.state-message.unstaged {
 		color: var(--color-warning);
+	}
+
+	.state-message.partial {
+		color: var(--color-info);
 	}
 
 	.state-message.staged {
