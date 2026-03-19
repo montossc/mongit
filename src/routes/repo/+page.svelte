@@ -1,33 +1,64 @@
 <script lang="ts">
 	import { repoStore } from '$lib/stores/repo.svelte';
+	import { Badge } from '$lib/components/ui';
 </script>
 
 <div class="repo-landing">
-	<div class="repo-summary">
-		<h2>Repository opened</h2>
+	<div class="summary">
+		<!-- Repo Identity -->
+		<div class="identity">
+			<h2 class="repo-title">{repoStore.activeRepoName ?? 'Unknown'}</h2>
+			{#if repoStore.activeRepoPath}
+				<span class="repo-path">{repoStore.activeRepoPath}</span>
+			{/if}
+		</div>
 
+		<!-- Branch Context -->
+		<div class="branch-context">
+			{#if repoStore.repoStatus}
+				{#if repoStore.repoStatus.branch}
+					<Badge variant="branch">{repoStore.repoStatus.branch}</Badge>
+				{:else}
+					<span class="detached-badge">Detached HEAD</span>
+				{/if}
+			{:else}
+				<span class="status-placeholder">…</span>
+			{/if}
+		</div>
+
+		<!-- Working-Tree State -->
 		{#if repoStore.repoStatus}
-			<div class="status-grid">
-				<div class="status-item">
-					<span class="status-label">Branch</span>
-					<span class="status-value mono">
-						{repoStore.repoStatus.branch ?? 'detached'}
-					</span>
+			<div class="state-cards">
+				<div class="stat-card">
+					<span class="stat-value">{repoStore.repoStatus.changed_files}</span>
+					<span class="stat-label">Changed</span>
 				</div>
-				<div class="status-item">
-					<span class="status-label">Changed files</span>
-					<span class="status-value">{repoStore.repoStatus.changed_files}</span>
-				</div>
-				<div class="status-item">
-					<span class="status-label">Staged files</span>
-					<span class="status-value">{repoStore.repoStatus.staged_files}</span>
+				<div class="stat-card">
+					<span class="stat-value">{repoStore.repoStatus.staged_files}</span>
+					<span class="stat-label">Staged</span>
 				</div>
 			</div>
-		{/if}
 
-		<p class="placeholder-note">
-			Workspace features will be added in upcoming updates.
-		</p>
+			<!-- State Message -->
+			{@const changed = repoStore.repoStatus.changed_files}
+			{@const staged = repoStore.repoStatus.staged_files}
+			<p
+				class="state-message"
+				class:clean={changed === 0 && staged === 0}
+				class:unstaged={changed > 0 && staged === 0}
+				class:staged={staged > 0}
+			>
+				{#if changed === 0 && staged === 0}
+					Working tree clean
+				{:else if changed > 0 && staged === 0}
+					Unstaged changes
+				{:else if staged > 0}
+					Ready to commit
+				{/if}
+			</p>
+		{:else}
+			<p class="fallback-message">Loading status…</p>
+		{/if}
 	</div>
 </div>
 
@@ -40,58 +71,119 @@
 		padding: var(--space-8);
 	}
 
-	.repo-summary {
+	.summary {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: var(--space-6);
-		max-width: 400px;
+		max-width: 480px;
+		width: 100%;
 		text-align: center;
 	}
 
-	.repo-summary h2 {
-		font-size: 18px;
-		font-weight: 600;
+	/* ── Identity ── */
+	.identity {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.repo-title {
+		font-family: var(--font-display);
+		font-size: var(--text-heading-lg-size);
+		font-weight: var(--text-heading-lg-weight);
+		line-height: var(--text-heading-lg-leading);
 		color: var(--color-text-primary);
 		margin: 0;
 	}
 
-	.status-grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: var(--space-4);
-		width: 100%;
+	.repo-path {
+		font-family: var(--font-mono);
+		font-size: var(--text-mono-sm-size);
+		color: var(--color-text-muted);
+		word-break: break-all;
 	}
 
-	.status-item {
+	/* ── Branch ── */
+	.branch-context {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+	}
+
+	.detached-badge {
+		display: inline-flex;
+		align-items: center;
+		height: var(--size-badge);
+		padding: var(--space-1) var(--space-3);
+		font-size: var(--text-caption-size);
+		font-weight: 500;
+		border-radius: var(--radius-full);
+		white-space: nowrap;
+		line-height: 1;
+		background: var(--color-warning-muted);
+		color: var(--color-warning);
+	}
+
+	.status-placeholder {
+		color: var(--color-text-muted);
+		font-size: var(--text-body-sm-size);
+	}
+
+	/* ── State Cards ── */
+	.state-cards {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: var(--space-4);
+		width: 100%;
+		max-width: 280px;
+	}
+
+	.stat-card {
 		display: flex;
 		flex-direction: column;
+		align-items: center;
 		gap: var(--space-2);
-		padding: var(--space-4);
+		padding: var(--space-5);
 		background: var(--color-bg-surface);
 		border-radius: var(--radius-md);
 		border: 1px solid var(--color-border);
 	}
 
-	.status-label {
+	.stat-value {
+		font-size: var(--text-heading-lg-size);
+		font-weight: 700;
+		color: var(--color-text-primary);
+	}
+
+	.stat-label {
 		font-size: var(--text-caption-size);
 		color: var(--color-text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 	}
 
-	.status-value {
-		font-size: 16px;
-		font-weight: 600;
-		color: var(--color-text-primary);
+	/* ── State Message ── */
+	.state-message {
+		font-size: var(--text-body-sm-size);
+		font-weight: 500;
+		margin: 0;
 	}
 
-	.status-value.mono {
-		font-family: var(--font-mono);
-		font-size: var(--text-mono-size);
+	.state-message.clean {
+		color: var(--color-success);
 	}
 
-	.placeholder-note {
+	.state-message.unstaged {
+		color: var(--color-warning);
+	}
+
+	.state-message.staged {
+		color: var(--color-accent);
+	}
+
+	.fallback-message {
 		font-size: var(--text-body-sm-size);
 		color: var(--color-text-muted);
 		margin: 0;
