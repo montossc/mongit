@@ -7,9 +7,22 @@
     scrollTop?: number;
     canvasHeight?: number;
     visible?: boolean;
+    interactions?: {
+      selection: number;
+      hover: number;
+      context: number;
+      keyboard: number;
+      detailNav: number;
+    };
   }
 
-  let { layout, scrollTop = 0, canvasHeight = 0, visible = false }: Props = $props();
+  let {
+    layout,
+    scrollTop = 0,
+    canvasHeight = 0,
+    visible = false,
+    interactions = { selection: 0, hover: 0, context: 0, keyboard: 0, detailNav: 0 }
+  }: Props = $props();
 
   const FRAME_WINDOW_SIZE = 60;
 
@@ -27,9 +40,14 @@
   let maxFrameTimeMs = $state(0);
 
   const visibleRows = $derived(Math.ceil(Math.max(0, canvasHeight) / ROW_HEIGHT));
+  const scrollRow = $derived(Math.floor(Math.max(0, scrollTop) / ROW_HEIGHT));
   const totalCommits = $derived(layout?.nodes.length ?? 0);
   const laneCount = $derived(layout?.laneCount ?? 0);
   const layoutTimeMs = $derived(layout?.layoutTimeMs ?? 0);
+
+  const interactionTotal = $derived(
+    interactions.selection + interactions.hover + interactions.context + interactions.keyboard + interactions.detailNav
+  );
 
   const fpsHealth = $derived(fps >= 55 ? 'good' : fps >= 30 ? 'warn' : 'bad');
 
@@ -158,6 +176,11 @@
     </div>
 
     <div class="metric">
+      <span class="label">Scroll Row</span>
+      <span class="value">{formatInt(scrollRow)}</span>
+    </div>
+
+    <div class="metric">
       <span class="label">Total Commits</span>
       <span class="value">{formatInt(totalCommits)}</span>
     </div>
@@ -172,8 +195,21 @@
       <span class="value">{formatMs(layoutTimeMs)}</span>
     </div>
 
-    <!-- Keep prop usage explicit for future expansion -->
-    <span class="sr-only">Scroll offset row {formatInt(Math.floor(scrollTop / ROW_HEIGHT))}</span>
+    <div class="metric metric--sub">
+      <span class="label">Interactions</span>
+      <span class="value">{formatInt(interactionTotal)}</span>
+    </div>
+
+    <div class="metric metric--sub">
+      <span class="label">Sel/Hov/Ctx</span>
+      <span class="value">{formatInt(interactions.selection)}/{formatInt(interactions.hover)}/{formatInt(interactions.context)}</span>
+    </div>
+
+    <div class="metric metric--sub">
+      <span class="label">Kb/Detail</span>
+      <span class="value">{formatInt(interactions.keyboard)}/{formatInt(interactions.detailNav)}</span>
+    </div>
+    <span class="sr-only">Scroll offset row {formatInt(scrollRow)}</span>
   </aside>
 {/if}
 

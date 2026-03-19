@@ -4,6 +4,8 @@ import {
 	NODE_RADIUS,
 	ROW_HEIGHT,
 	TEXT_PADDING_LEFT,
+	REF_LABEL_GAP,
+	estimateRefBadgeWidth,
 } from "./render";
 import type { CommitNode, LayoutResult, RefData } from "./types";
 
@@ -13,21 +15,6 @@ export type HitTarget =
 	| { type: "row"; node: CommitNode }
 	| { type: "none" };
 
-const REF_GAP = 6;
-
-function estimateRefBadgeWidth(ref: RefData): number {
-	const basePadding = ref.ref_type === "Head" ? 14 : 12;
-	const textEstimate = Math.max(24, ref.name.length * 7);
-	return basePadding + textEstimate;
-}
-
-function estimateRefZoneWidth(node: CommitNode): number {
-	if (node.refs.length === 0) return 0;
-	return (
-		node.refs.reduce((total, ref) => total + estimateRefBadgeWidth(ref), 0) +
-		REF_GAP * Math.max(0, node.refs.length - 1)
-	);
-}
 
 export function hitTest(
 	layout: LayoutResult,
@@ -68,7 +55,7 @@ export function hitTest(
 			if (canvasX >= cursorX && canvasX <= cursorX + badgeWidth) {
 				return { type: "ref", node, ref };
 			}
-			cursorX += badgeWidth + REF_GAP;
+			cursorX += badgeWidth + REF_LABEL_GAP;
 		}
 	}
 

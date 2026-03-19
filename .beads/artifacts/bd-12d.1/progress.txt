@@ -1,0 +1,27 @@
+# Progress Log
+
+Bead: bd-12d.1
+Started: 2026-03-17
+
+## Codebase Patterns
+
+<!-- Consolidate reusable patterns here -->
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
+
+## Task: foundation-1 — Deterministic lane assignment contract
+**Status:** PASS
+**Commit:** de6756f
+**Changes:**
+- `src/lib/graph/layout.ts`: Explicit 5-point determinism contract in assignLanes() JSDoc
+- `scripts/determinism-check.ts`: 7 isolated topology fixtures (empty, single-commit, linear-chain, fan-out, fan-in-merge, octopus-merge, composite), 10 runs each, extracted assertDeterministic() engine
+**Evidence:** 7/7 topologies pass, pnpm check 0 errors
+
+## Task: validation-1 — Shared benchmark alignment
+**Status:** PASS
+**Commit:** 78a8b46
+**Changes:**
+- `scripts/perf-bench.ts`: Replaced simulateHitTest with real hitTest() from hitTest.ts, imported ROW_HEIGHT/LANE_WIDTH/GRAPH_PADDING_LEFT from render.ts, eliminated duplicated constants
+**Evidence:** perf-bench ALL TARGETS MET (10k: 5.1ms layout, 30.5MB heap), pnpm check 0 errors

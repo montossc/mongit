@@ -1,12 +1,185 @@
-# Progress Log
+# Spike B — Canvas Commit Graph Engine: Verification Evidence
 
-Bead: bd-12d
-Started: 2026-03-16
+## Automated Benchmark Results
 
-## Codebase Patterns
+```text
+========================================================================
+  mongit — Commit Graph Performance Benchmark
+========================================================================
 
-<!-- Consolidate reusable patterns here -->
+PRD Targets:
+  Layout (10k):  < 100ms
+  Hit test:      < 1ms
+  Memory (10k):  < 50MB JS heap
 
----
+Warming up...
 
-<!-- Task logs below - APPEND ONLY -->
+Benchmarking 1,000 commits... done (0.8ms)
+Benchmarking 5,000 commits... done (5.0ms)
+Benchmarking 10,000 commits... done (4.7ms)
+Benchmarking 25,000 commits... done (23.0ms)
+Benchmarking 50,000 commits... done (34.6ms)
+Benchmarking 100,000 commits... done (106.4ms)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+   Commits   Branches   Gen (ms)  Layout (ms)    Lanes   Segments   HitTest (ms)   Heap (MB)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+     1,000          5        0.3        0.8 ✓        5      1,076       0.0000 ✓      10.1 ✓
+     5,000          8        0.4        5.0 ✓        8      5,372       0.0000 ✓      15.0 ✓
+    10,000         10        1.1        4.7 ✓       10     10,725       0.0000 ✓      33.3 ✓
+    25,000         15        2.2       23.0         15     26,883       0.0000 ✓      56.4  
+    50,000         20       24.9       34.6         20     53,717       0.0006 ✓      35.5  
+   100,000         25       37.9      106.4         25    107,533       0.0000 ✓     218.2  
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+══════════════════════════════════════════════════
+  10k Commit Validation (PRD R7 Targets)
+══════════════════════════════════════════════════
+  ✓ PASS  Layout time < 100ms       4.7ms
+  ✓ PASS  Hit test < 1ms            0.0000ms
+  ✓ PASS  JS heap < 50MB            33.3MB
+  ✓ PASS  Lane count < 50           10
+
+  Overall: ✓ ALL TARGETS MET
+```
+
+## Determinism Check Results
+
+```text
+PASS: assignLanes() is deterministic for the fixed topology fixture.
+      commits=11, refs=7, runs=3
+      laneCount=4, segments=13
+PASS: renderer viewport regressions hold for visible-range, edge-culling, and hit-test math.
+```
+
+## Route Metrics Availability
+
+- [x] Commit count: displayed in toolbar
+- [x] Lane count: displayed in toolbar
+- [x] Layout time: displayed in toolbar
+- [x] FPS / Frame time: FpsOverlay (Cmd+Shift+P)
+- [x] Visible rows: FpsOverlay
+- [x] Scroll row: FpsOverlay
+
+## Manual Validation Checklist (requires `pnpm tauri dev`)
+
+- [ ] Open /spike-b in running app
+- [ ] Load synthetic data — graph renders
+- [ ] Load real repository (10k+ commits) — graph renders
+- [ ] Repeat real repo load — layout remains stable
+- [ ] Sustained scroll — FPS stays above 55
+- [ ] No blank flashes during rapid scroll
+- [ ] HiDPI rendering is crisp
+- [ ] Click selection works correctly
+- [ ] Hover highlights correct row
+- [ ] Right-click context menu targets correct commit
+- [ ] Keyboard navigation: ↑ ↓ Home End PageUp PageDown Enter Escape
+- [ ] Commit detail panel shows selected commit info
+- [ ] FPS overlay toggles with button and Cmd+Shift+P
+
+## Automated Benchmark Baseline Refresh (bd-12d.3 / benchmark-1)
+
+Date: 2026-03-17
+Command: `npx tsx scripts/perf-bench.ts`
+
+```text
+10k Commit Validation (PRD R7 Targets)
+✓ PASS Layout time < 100ms  4.6ms
+✓ PASS Hit test < 1ms       0.0000ms
+✓ PASS JS heap < 50MB       30.5MB
+✓ PASS Lane count < 50      10
+Overall: ✓ ALL TARGETS MET
+```
+
+Benchmark snapshot JSON (machine-comparable):
+
+```json
+{
+  "generatedAt": "2026-03-17T18:00:53.614Z",
+  "targets": {
+    "layoutMs": 100,
+    "hitTestMs": 1,
+    "heapMb": 50
+  },
+  "tenK": {
+    "layoutMs": 4.644,
+    "hitTestMs": 0.00003,
+    "heapMb": 30.488,
+    "laneCount": 10,
+    "segmentCount": 10701,
+    "allPass": true,
+    "checks": [
+      {
+        "name": "Layout time < 100ms",
+        "value": "4.6ms",
+        "pass": true
+      },
+      {
+        "name": "Hit test < 1ms",
+        "value": "0.0000ms",
+        "pass": true
+      },
+      {
+        "name": "JS heap < 50MB",
+        "value": "30.5MB",
+        "pass": true
+      },
+      {
+        "name": "Lane count < 50",
+        "value": "10",
+        "pass": true
+      }
+    ]
+  }
+}
+```
+
+## Manual Validation Run Template (bd-12d.3)
+
+- Run date:
+- Operator:
+- Repo path:
+- Commit SHA under test:
+- [ ] Sustained FPS >= 55 during continuous scroll
+- [ ] Render frame < 8ms
+- [ ] First paint < 500ms
+- [ ] No visual glitches during rapid scroll
+- [ ] Retina rendering is crisp
+- [ ] Correct topology (branches/merges render properly)
+- Notes:
+
+## Automated Benchmark Baseline Refresh (bd-12d.3 / review-fix)
+
+Date: 2026-03-17
+Command: `npx tsx scripts/perf-bench.ts`
+
+```text
+10k Commit Validation (PRD R7 Targets)
+✓ PASS Layout time < 100ms  6.0ms
+✓ PASS Hit test < 1ms       0.0000ms
+✓ PASS JS heap < 50MB       20.5MB
+✓ PASS Lane count < 50      10
+Overall: ✓ ALL TARGETS MET
+```
+
+Benchmark snapshot JSON (stable baseline, compare this block):
+
+```json
+{
+  "runId": "<stable-run-id>",
+  "generatedAt": "<stable-timestamp>",
+  "targets": {
+    "layoutMs": 100,
+    "hitTestMs": 1,
+    "heapMb": 50
+  },
+  "tenK": {
+    "layoutMs": 5.982,
+    "hitTestMs": 0.000029,
+    "heapMb": 20.52,
+    "laneCount": 10,
+    "segmentCount": 10758,
+    "allPass": true
+  }
+}
+```

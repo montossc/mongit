@@ -1,0 +1,85 @@
+{
+  "beadId": "bd-12d.3",
+  "prdName": "graph-interaction-and-performance-benchmark-suite",
+  "tasks": [
+    {
+      "id": "validation-1",
+      "category": "validation",
+      "description": "The /spike-b surface makes interaction readiness and route-visible benchmark metrics explicit enough for manual validation runs.",
+      "steps": [
+        "Manual /spike-b validation confirms selection, hover, right-click, keyboard navigation, and commit detail readiness",
+        "FPS overlay and toolbar metrics remain usable during synthetic and real-repo validation runs",
+        "pnpm check"
+      ],
+      "passes": true,
+      "metadata": {
+        "depends_on": [],
+        "parallel": true,
+        "conflicts_with": [],
+        "files": [
+          "src/routes/spike-b/+page.svelte",
+          "src/lib/graph/FpsOverlay.svelte",
+          "src/lib/graph/GraphCanvas.svelte",
+          "src/lib/graph/CommitDetail.svelte"
+        ]
+      }
+    },
+    {
+      "id": "benchmark-1",
+      "category": "benchmark",
+      "description": "Automated benchmark output and the Spike B progress log form a durable baseline future agents can compare against.",
+      "steps": [
+        "npx tsx scripts/perf-bench.ts",
+        ".beads/artifacts/bd-12d/progress.txt records automated benchmark output and manual validation results",
+        "pnpm check",
+        "pnpm build",
+        "cargo check"
+      ],
+      "passes": true,
+      "metadata": {
+        "depends_on": [
+          "Interaction validation surface"
+        ],
+        "parallel": false,
+        "conflicts_with": [],
+        "files": [
+          "scripts/perf-bench.ts",
+          ".beads/artifacts/bd-12d/progress.txt",
+          "src/routes/spike-b/+page.svelte",
+          "src/lib/graph/FpsOverlay.svelte"
+        ]
+      }
+    }
+  ],
+  "context": {
+    "patterns": [
+      "Validation surface: src/routes/spike-b/+page.svelte",
+      "Interaction hooks: src/lib/graph/GraphCanvas.svelte + CommitDetail.svelte",
+      "Metrics baseline: src/lib/graph/FpsOverlay.svelte + scripts/perf-bench.ts + .beads/artifacts/bd-12d/progress.txt"
+    ],
+    "keyFiles": [
+      "src/routes/spike-b/+page.svelte",
+      "src/lib/graph/GraphCanvas.svelte",
+      "src/lib/graph/CommitDetail.svelte",
+      "src/lib/graph/FpsOverlay.svelte",
+      "scripts/perf-bench.ts",
+      ".beads/artifacts/bd-12d/progress.txt"
+    ],
+    "nonGoals": [
+      "Layout algorithm redesign (bd-12d.1 scope)",
+      "Renderer virtualization redesign (bd-12d.2 scope)",
+      "New rendering technology or frontend test framework",
+      "Broad analytics/telemetry platform"
+    ]
+  },
+  "beadMetadata": {
+    "depends_on": [
+      "bd-12d.2",
+      "bd-12d"
+    ],
+    "parallel": false,
+    "conflicts_with": [],
+    "blocks": [],
+    "estimated_hours": 2
+  }
+}

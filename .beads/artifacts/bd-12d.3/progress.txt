@@ -1,0 +1,49 @@
+# Progress Log
+
+Bead: bd-12d.3
+Started: 2026-03-17
+
+## Codebase Patterns
+
+<!-- Consolidate reusable patterns here -->
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
+
+## 2026-03-17 — validation-1
+- status: complete
+- commit: c7ebde3
+- files:
+  - src/routes/spike-b/+page.svelte
+  - src/lib/graph/FpsOverlay.svelte
+  - src/lib/graph/GraphCanvas.svelte
+- evidence:
+  - /spike-b adds explicit validation checklist and completion counter
+  - interaction counters wired into overlay (selection/hover/context/keyboard/detail)
+  - `pnpm check` passed
+
+## 2026-03-17 — benchmark-1
+- status: complete
+- commit: ac0b11e
+- files:
+  - scripts/perf-bench.ts
+  - .beads/artifacts/bd-12d/progress.txt
+  - .beads/artifacts/bd-12d.3/prd.json
+  - .beads/artifacts/bd-12d.3/progress.txt
+- evidence:
+  - `npx tsx scripts/perf-bench.ts` printed machine-readable benchmark snapshot JSON
+  - baseline refresh appended to `.beads/artifacts/bd-12d/progress.txt`
+  - full verification passed before commit (`npx tsx scripts/perf-bench.ts`, `pnpm check`, `pnpm build`, `cargo check`)
+
+## 2026-03-17 — review-fixes
+- status: complete
+- commit: f204538
+- files:
+  - src/routes/spike-b/+page.svelte
+  - scripts/perf-bench.ts
+- evidence:
+  - manual-only checklist items are no longer auto-marked by scroll/resize/load side effects
+  - keyboard FPS shortcut now marks `fpsToggle` checklist item
+  - benchmark output now includes stable baseline JSON block + separate run metadata block
+  - re-review (post-fix diff) reported no critical/important/minor findings

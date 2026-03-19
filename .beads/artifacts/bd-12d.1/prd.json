@@ -1,0 +1,76 @@
+{
+	"beadId": "bd-12d.1",
+	"prdName": "graph-data-pipeline-lane-algorithm",
+	"tasks": [
+		{
+			"id": "foundation-1",
+			"category": "foundation",
+			"description": "The graph pipeline produces stable lane, color, and segment output for identical commit/ref input.",
+			"steps": [
+				"npx tsx scripts/determinism-check.ts passes repeatedly",
+				"Identical input reports stable lane count and segment count across multiple runs",
+				"pnpm check passes"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/graph/layout.ts",
+					"src/lib/graph/types.ts",
+					"scripts/determinism-check.ts"
+				]
+			}
+		},
+		{
+			"id": "validation-1",
+			"category": "validation",
+			"description": "Benchmark and regression scripts measure the same layout implementation used by the app rather than a copied variant.",
+			"steps": [
+				"npx tsx scripts/perf-bench.ts runs against imported shared graph logic",
+				"No duplicated lane-assignment implementation remains in the benchmark path",
+				"pnpm check passes after script alignment"
+			],
+			"passes": true,
+			"metadata": {
+				"depends_on": ["foundation-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"scripts/perf-bench.ts",
+					"src/lib/graph/layout.ts",
+					"src/lib/graph/types.ts"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Graph pipeline: src/lib/graph/layout.ts — pure assignLanes() entry point",
+			"Shared types: src/lib/graph/types.ts — immutable graph contracts",
+			"Script harnesses: scripts/determinism-check.ts, scripts/perf-bench.ts — zero-dependency"
+		],
+		"keyFiles": [
+			"src/lib/graph/layout.ts",
+			"src/lib/graph/types.ts",
+			"scripts/determinism-check.ts",
+			"scripts/perf-bench.ts"
+		],
+		"nonGoals": [
+			"Route extraction to /spike-b",
+			"Canvas rendering, viewport culling, or FPS overlay work",
+			"Hit-testing and interaction behavior changes",
+			"Manual validation on a real 10k+ repository",
+			"Adding a frontend test framework or new dependency",
+			"Replacing the greedy first-parent lane strategy"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-12d"],
+		"parallel": true,
+		"conflicts_with": [],
+		"blocks": ["bd-12d.2"],
+		"estimated_hours": 2
+	}
+}

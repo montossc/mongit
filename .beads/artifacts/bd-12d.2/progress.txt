@@ -1,0 +1,31 @@
+# Progress Log
+
+Bead: bd-12d.2
+Started: 2026-03-17
+
+## Codebase Patterns
+
+<!-- Consolidate reusable patterns here -->
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
+
+## Task: renderer-1 — Visible-range renderer hardening
+**Status:** PASS
+**Commit:** 6efc96f
+**Changes:**
+- `src/lib/graph/render.ts`: Added shared ref badge geometry constants + exported estimateRefBadgeWidth(); hardened getVisibleRange() with NaN/negative input clamping.
+- `scripts/determinism-check.ts`: Added viewport regression coverage for invalid scroll/height inputs and renderer-hit-test badge geometry contract checks.
+**Evidence:**
+- `npx tsx scripts/determinism-check.ts` PASS (7 topologies + viewport/edge/hit-test regressions)
+- `pnpm check` PASS (0 errors, existing warnings unchanged)
+
+## Task: integration-1 — Canvas loop and interaction alignment
+**Status:** PASS
+**Commit:** a9f3bfb
+**Changes:**
+- `src/lib/graph/hitTest.ts`: Removed duplicated ref badge heuristics; now imports shared `estimateRefBadgeWidth` and `REF_LABEL_GAP` from `render.ts`.
+**Evidence:**
+- `pnpm check` PASS (0 errors, existing warnings unchanged)
+- Shared geometry constants are consumed by both render + hit-test paths
