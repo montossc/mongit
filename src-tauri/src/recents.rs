@@ -32,19 +32,27 @@ pub fn load_raw(app: &tauri::AppHandle) -> Result<Vec<RecentRepo>, String> {
         return Ok(vec![]);
     }
 
-    let content = fs::read_to_string(&file_path).map_err(|e| {
-        format!(
-            "Failed to read recents file at {}: {e}",
-            file_path.display()
-        )
-    })?;
+    let content = match fs::read_to_string(&file_path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!(
+                "Warning: Failed to read recents file at {}: {e} — starting fresh",
+                file_path.display()
+            );
+            return Ok(vec![]);
+        }
+    };
 
-    serde_json::from_str(&content).map_err(|e| {
-        format!(
-            "Failed to parse recents file at {}: {e}",
-            file_path.display()
-        )
-    })
+    match serde_json::from_str(&content) {
+        Ok(repos) => Ok(repos),
+        Err(e) => {
+            eprintln!(
+                "Warning: Corrupted recents file at {}: {e} — starting fresh",
+                file_path.display()
+            );
+            Ok(vec![])
+        }
+    }
 }
 
 pub fn save(app: &tauri::AppHandle, repos: &[RecentRepo]) -> Result<(), String> {
@@ -62,9 +70,18 @@ pub fn save(app: &tauri::AppHandle, repos: &[RecentRepo]) -> Result<(), String> 
     let json = serde_json::to_string_pretty(repos)
         .map_err(|e| format!("Failed to serialize recents list: {e}"))?;
 
-    fs::write(&file_path, json).map_err(|e| {
+    // Atomic write: write to temp file, then rename to avoid corruption on crash
+    let tmp_path = file_path.with_extension("json.tmp");
+    fs::write(&tmp_path, &json).map_err(|e| {
         format!(
-            "Failed to write recents file at {}: {e}",
+            "Failed to write temp recents file at {}: {e}",
+            tmp_path.display()
+        )
+    })?;
+
+    fs::rename(&tmp_path, &file_path).map_err(|e| {
+        format!(
+            "Failed to rename temp recents file to {}: {e}",
             file_path.display()
         )
     })

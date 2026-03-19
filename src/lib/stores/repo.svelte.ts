@@ -36,6 +36,7 @@ function createRepoStore() {
 	let recentRepos = $state<RecentRepo[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
+	let openRequestId = 0; // Race condition guard (like diff store pattern)
 
 	/** Load the recent repos list from backend (with validity checks). */
 	async function loadRecentRepos(): Promise<void> {
@@ -51,10 +52,14 @@ function createRepoStore() {
 	 * Open a repository by path.
 	 *
 	 * Flow: validate → save to recents → hydrate status → navigate to /repo.
+	 * Uses request ID guard to prevent stale async responses from overwriting newer state.
 	 */
 	async function openRepo(path: string): Promise<void> {
 		const trimmed = path.trim();
 		if (!trimmed) return;
+
+		openRequestId += 1;
+		const thisRequest = openRequestId;
 
 		loading = true;
 		error = null;
@@ -63,25 +68,35 @@ function createRepoStore() {
 			// Validate path + save to recents (single backend call)
 			const entry = await invoke<RecentRepo>("open_repo", { path: trimmed });
 
+			// Stale response guard — a newer openRepo call superseded this one
+			if (thisRequest !== openRequestId) return;
+
 			// Hydrate repo status using existing command
 			const status = await invoke<RepoStatus>("get_repo_status", {
 				path: entry.path,
 			});
+
+			// Stale response guard (check again after second await)
+			if (thisRequest !== openRequestId) return;
 
 			// Commit to store state
 			activeRepoPath = entry.path;
 			activeRepoName = entry.name;
 			repoStatus = status;
 
-			// Refresh recents list
-			await loadRecentRepos();
-
-			// Navigate to workspace
+			// Navigate to workspace first (don't block on recents refresh)
 			await goto("/repo");
+
+			// Fire-and-forget: refresh recents in background
+			void loadRecentRepos();
 		} catch (e) {
-			error = String(e);
+			if (thisRequest === openRequestId) {
+				error = String(e);
+			}
 		} finally {
-			loading = false;
+			if (thisRequest === openRequestId) {
+				loading = false;
+			}
 		}
 	}
 
@@ -94,8 +109,9 @@ function createRepoStore() {
 				multiple: false,
 				title: "Select Git Repository",
 			});
+			// With multiple: false, returns string | null
 			if (selected) {
-				await openRepo(selected as string);
+				await openRepo(selected);
 			}
 		} catch (e) {
 			error = String(e);

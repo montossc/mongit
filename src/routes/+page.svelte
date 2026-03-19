@@ -7,6 +7,7 @@
 	let dragOver = $state(false);
 
 	onMount(() => {
+		let mounted = true;
 		repoStore.loadRecentRepos();
 
 		let unlisten: (() => void) | undefined;
@@ -17,7 +18,7 @@
 					'@tauri-apps/api/webviewWindow'
 				);
 				const webview = getCurrentWebviewWindow();
-				unlisten = await webview.onDragDropEvent((event) => {
+				const unlistenFn = await webview.onDragDropEvent((event) => {
 					if (event.payload.type === 'over') {
 						dragOver = true;
 					} else if (event.payload.type === 'drop') {
@@ -30,6 +31,14 @@
 						dragOver = false;
 					}
 				});
+
+				// If component unmounted during async setup, clean up immediately
+				if (!mounted) {
+					unlistenFn();
+					return;
+				}
+
+				unlisten = unlistenFn;
 			} catch {
 				// Drag-drop unavailable outside Tauri — silently skip
 			}
@@ -38,6 +47,7 @@
 		setupDragDrop();
 
 		return () => {
+			mounted = false;
 			unlisten?.();
 		};
 	});
@@ -539,9 +549,5 @@
 
 	.drop-icon {
 		opacity: 0.8;
-	}
-
-	.home.drag-over {
-		/* Subtle visual hint when dragging */
 	}
 </style>
