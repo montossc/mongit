@@ -1,0 +1,17 @@
+# Progress Log
+
+Bead: bd-6ew.1
+Started: 2026-03-19
+
+## Codebase Patterns
+
+- Store (runes + persistence): `src/lib/stores/theme.svelte.ts:10-79`
+- Store (invoke factory): `src/lib/stores/watcher.svelte.ts:9-70`
+- Async commands: `src-tauri/src/commands.rs:99-102` (spawn_blocking, PathBuf)
+- Existing `get_repo_status`: `src-tauri/src/commands.rs:27-43` — reuse, don't duplicate
+- UI primitives: `src/lib/components/ui/` (Button, Input, Badge, Panel)
+- Command registration: `src-tauri/src/lib.rs` via `generate_handler![]`
+
+---
+
+<!-- Task logs below - APPEND ONLY -->

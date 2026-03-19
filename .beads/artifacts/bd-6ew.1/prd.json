@@ -1,0 +1,108 @@
+{
+	"beadId": "bd-6ew.1",
+	"prdName": "repo-selection-persistence",
+	"tasks": [
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"description": "Add Tauri commands that validate repository paths and manage recent-repo records in app data using a single backend-owned schema.",
+			"steps": [
+				"cargo check passes in src-tauri/",
+				"cargo test passes — covers valid repo, invalid path, stale repo, recents update, and 10-item LRU eviction behavior",
+				"Successful open can reuse get_repo_status without duplicating repo-status logic",
+				"Invalid path returns structured error, not panic"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": ["src-tauri/src/commands.rs", "src-tauri/src/lib.rs"]
+			}
+		},
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"description": "Create a runes-based repo store that owns active repo state, recent repos, open/remove/retry actions, and navigation handoff into /repo.",
+			"steps": [
+				"pnpm check passes",
+				"Store exposes currentRepoPath, recentRepos, repoStatus, loading state, and error state",
+				"Successful open updates recents and routes into /repo"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["backend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/stores/repo.svelte.ts"]
+			}
+		},
+		{
+			"id": "ui-1",
+			"category": "ui",
+			"description": "Replace the current root-route spike controls with a product home surface for repo entry, recents display, stale-entry actions, and drag-drop affordances.",
+			"steps": [
+				"pnpm check passes",
+				"Home route exposes native picker, manual path entry, drag-drop, and recent-repo reopen affordances",
+				"Invalid path errors and stale-entry states are visible and specific",
+				"Uses design system tokens and UI primitives"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/routes/+page.svelte"]
+			}
+		},
+		{
+			"id": "ui-2",
+			"category": "ui",
+			"description": "Create the /repo route shell and default page needed for successful navigation after repo open, without implementing the summary widgets owned by bd-6ew.2.",
+			"steps": [
+				"pnpm check passes",
+				"App can navigate from / to /repo after successful repo open",
+				"Route shell exists as a stable handoff target for bd-6ew.2"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-1"],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/repo/+layout.svelte",
+					"src/routes/repo/+page.svelte"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Store pattern: src/lib/stores/theme.svelte.ts (runes + persistence)",
+			"Tauri invoke pattern: src/lib/stores/watcher.svelte.ts (factory + error handling)",
+			"Command pattern: src-tauri/src/commands.rs (spawn_blocking, PathBuf, Result<_, String>)",
+			"UI primitives: src/lib/components/ui/ (Button, Input, Badge, Panel)"
+		],
+		"keyFiles": [
+			"src-tauri/src/commands.rs",
+			"src-tauri/src/lib.rs",
+			"src/routes/+page.svelte",
+			"src/lib/stores/theme.svelte.ts",
+			"src/lib/stores/watcher.svelte.ts"
+		],
+		"nonGoals": [
+			"Summary widgets / dashboard orientation (bd-6ew.2)",
+			"Branch switcher UX",
+			"Clone/init flows",
+			"Command palette integration",
+			"Multi-window / multi-repo workspaces"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-6ew"],
+		"parallel": true,
+		"conflicts_with": [],
+		"blocks": ["bd-6ew.2"],
+		"estimated_hours": 8
+	}
+}
