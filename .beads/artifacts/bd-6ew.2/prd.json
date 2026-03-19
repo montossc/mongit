@@ -1,0 +1,62 @@
+{
+	"beadId": "bd-6ew.2",
+	"prdName": "home-summary-widgets",
+	"tasks": [
+		{
+			"id": "ui-1",
+			"category": "ui",
+			"description": "Replace the placeholder /repo landing page with an orientation-focused summary surface that confirms repo identity, branch context, and current working-tree state using the existing repoStore contract.",
+			"steps": [
+				"pnpm check passes with 0 errors",
+				"pnpm build passes",
+				"cargo check passes",
+				"Manual app check: open a valid repo from / and confirm /repo shows repo identity, branch/detached state, changed files count, staged files count, and concise clean/dirty messaging",
+				"Manual app check: open two repos with similar names in different directories and confirm the summary surface distinguishes them clearly"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/repo/+page.svelte",
+					"src/routes/repo/+layout.svelte",
+					"src/lib/stores/repo.svelte.ts"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"SvelteKit routes: src/routes/",
+			"Runes-based stores: src/lib/stores/",
+			"UI components: src/lib/components/ui/",
+			"Tauri IPC: invoke() from @tauri-apps/api/core",
+			"Design tokens: src/app.css"
+		],
+		"keyFiles": [
+			"src/routes/repo/+page.svelte",
+			"src/routes/repo/+layout.svelte",
+			"src/lib/stores/repo.svelte.ts",
+			"src-tauri/src/commands.rs",
+			"src/lib/components/ui/index.ts",
+			"src/app.css"
+		],
+		"nonGoals": [
+			"Recent commit lists or activity timelines",
+			"Changed-file preview or embedded diffs",
+			"Ahead/behind or remote sync indicators",
+			"Stash count or branch switcher UX",
+			"Watcher-driven auto-refresh",
+			"Workflow CTAs or command launcher surfaces",
+			"New backend commands unless current contract is insufficient"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-6ew.1"],
+		"parallel": false,
+		"conflicts_with": [],
+		"blocks": [],
+		"estimated_hours": 3
+	}
+}

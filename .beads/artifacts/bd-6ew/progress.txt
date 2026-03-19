@@ -1,0 +1,29 @@
+# Progress Log
+
+Bead: bd-6ew
+Started: 2026-03-20
+
+## Codebase Patterns
+
+- Svelte 5 runes-based store: src/lib/stores/repo.svelte.ts (createRepoStore with $state, getters, async lifecycle, race guard)
+- Tauri IPC: invoke<T>(commandName, {args}) from @tauri-apps/api/core
+- Async Tauri commands: tokio::task::spawn_blocking, Result<T, String> error propagation
+- Design tokens: CSS custom properties in src/app.css
+- UI primitives: Badge, Button, Input, Panel in src/lib/components/ui/
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
+
+## frontend-1: Repo selection and persistence baseline
+
+**Status:** PASS (delivered by bd-6ew.1)
+**Commits:** 5 commits in bd-6ew.1 (94 tests, all passing)
+**Key files:** src/routes/+page.svelte, src/lib/stores/repo.svelte.ts, src-tauri/src/commands.rs, src-tauri/src/recents.rs
+
+## ui-1: Repo workspace orientation shell
+
+**Status:** PASS (delivered by bd-6ew.2)
+**Commits:** 2 commits in bd-6ew.2 (08fd732, c966562)
+**Key files:** src/routes/repo/+layout.svelte, src/routes/repo/+page.svelte
+**Review fixes:** 4-state working-tree message, overflow-y: auto, aria-label on placeholder, typography token consistency
