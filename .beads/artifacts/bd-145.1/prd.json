@@ -1,0 +1,116 @@
+{
+	"beadId": "bd-145.1",
+	"prdName": "graph-detail-binding",
+	"tasks": [
+		{
+			"id": "ui-1",
+			"category": "ui",
+			"description": "Expose a dedicated history route from the existing /repo summary without replacing the summary landing page.",
+			"steps": [
+				"pnpm check passes",
+				"Manual app check confirms /repo still shows the summary landing surface",
+				"Manual app check confirms users can enter the history workspace from the repo shell"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/repo/+page.svelte",
+					"src/routes/repo/history/+page.svelte"
+				]
+			}
+		},
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"description": "Load graph data for the active repository with request-guarded route state that handles loading, error, empty, and repo-change invalidation predictably.",
+			"steps": [
+				"pnpm check passes",
+				"History route loads commit log and refs for the active repository using existing Tauri commands",
+				"Invalid repo or load failure shows an error state without stale graph/detail content"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["Repo-shell history route handoff"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/routes/repo/history/+page.svelte"]
+			}
+		},
+		{
+			"id": "ui-2",
+			"category": "ui",
+			"description": "Make commit selection a dependable route-level contract so graph clicks, keyboard navigation, and detail-panel parent navigation all stay synchronized.",
+			"steps": [
+				"pnpm check passes",
+				"Manual app check confirms graph selection updates commit details",
+				"Manual app check confirms parent navigation from the detail panel updates the active graph selection",
+				"Selection persists when the same commit remains present after refresh and clears safely when it does not"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["History graph loading and state lifecycle"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/repo/history/+page.svelte",
+					"src/lib/graph/GraphCanvas.svelte",
+					"src/lib/graph/CommitDetail.svelte"
+				]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Leave the history workspace ready for bd-145.2 by proving the route, selection contract, and shell placement are stable.",
+			"steps": [
+				"pnpm check passes",
+				"pnpm build passes",
+				"cargo check passes",
+				"Manual app check confirms the nested history route remains within repo shell context and is ready for overlay work in bd-145.2"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["Controlled graph-detail selection binding"],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/repo/history/+page.svelte",
+					"src/lib/graph/GraphCanvas.svelte"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Spike-B graph loading: src/routes/spike-b/+page.svelte:72-293",
+			"Repo store request-id guards: src/lib/stores/repo.svelte.ts:39",
+			"Diff store selection-validity: src/lib/stores/diff.svelte.ts:44",
+			"GraphCanvas local selectedId: src/lib/graph/GraphCanvas.svelte:38",
+			"CommitDetail parent navigation: src/lib/graph/CommitDetail.svelte:171"
+		],
+		"keyFiles": [
+			"src/routes/repo/+layout.svelte",
+			"src/routes/repo/+page.svelte",
+			"src/lib/graph/GraphCanvas.svelte",
+			"src/lib/graph/CommitDetail.svelte",
+			"src/lib/graph/types.ts"
+		],
+		"nonGoals": [
+			"Ref overlay readability improvements (bd-145.2)",
+			"Graph rendering algorithm changes",
+			"Commit mutation actions",
+			"File history, blame, compare-commit workflows",
+			"Watcher-driven refresh orchestration"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-145"],
+		"parallel": true,
+		"conflicts_with": [],
+		"blocks": ["bd-145.2"],
+		"estimated_hours": 6
+	}
+}
