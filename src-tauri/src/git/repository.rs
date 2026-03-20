@@ -231,7 +231,10 @@ impl GitRepository for Git2Repository {
     fn changed_files(&self) -> Result<Vec<ChangedFileEntry>, GitError> {
         let repo = self.repo()?;
         let mut opts = git2::StatusOptions::new();
-        opts.include_untracked(true).recurse_untracked_dirs(true);
+        opts.include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .renames_head_to_index(true)
+            .renames_index_to_workdir(true);
 
         let statuses = repo.statuses(Some(&mut opts))?;
 
@@ -240,30 +243,30 @@ impl GitRepository for Git2Repository {
             let path = entry.path().unwrap_or("").to_string();
             let bits = entry.status();
 
-            let staged = if bits.intersects(git2::Status::INDEX_NEW) {
+            let staged = if bits.intersects(git2::Status::INDEX_RENAMED) {
+                Some(FileChangeKind::Renamed)
+            } else if bits.intersects(git2::Status::INDEX_TYPECHANGE) {
+                Some(FileChangeKind::Typechange)
+            } else if bits.intersects(git2::Status::INDEX_NEW) {
                 Some(FileChangeKind::Added)
             } else if bits.intersects(git2::Status::INDEX_MODIFIED) {
                 Some(FileChangeKind::Modified)
             } else if bits.intersects(git2::Status::INDEX_DELETED) {
                 Some(FileChangeKind::Deleted)
-            } else if bits.intersects(git2::Status::INDEX_RENAMED) {
-                Some(FileChangeKind::Renamed)
-            } else if bits.intersects(git2::Status::INDEX_TYPECHANGE) {
-                Some(FileChangeKind::Typechange)
             } else {
                 None
             };
 
-            let unstaged = if bits.intersects(git2::Status::WT_NEW) {
+            let unstaged = if bits.intersects(git2::Status::WT_RENAMED) {
+                Some(FileChangeKind::Renamed)
+            } else if bits.intersects(git2::Status::WT_TYPECHANGE) {
+                Some(FileChangeKind::Typechange)
+            } else if bits.intersects(git2::Status::WT_NEW) {
                 Some(FileChangeKind::Added)
             } else if bits.intersects(git2::Status::WT_MODIFIED) {
                 Some(FileChangeKind::Modified)
             } else if bits.intersects(git2::Status::WT_DELETED) {
                 Some(FileChangeKind::Deleted)
-            } else if bits.intersects(git2::Status::WT_RENAMED) {
-                Some(FileChangeKind::Renamed)
-            } else if bits.intersects(git2::Status::WT_TYPECHANGE) {
-                Some(FileChangeKind::Typechange)
             } else {
                 None
             };

@@ -34,6 +34,12 @@ function createChangesStore() {
 		const thisRequest = requestId;
 		loading = true;
 		error = null;
+
+		// Clear stale data when switching repos
+		if (path !== repoPath) {
+			files = [];
+			selectedPath = null;
+		}
 		repoPath = path;
 
 		try {

@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { repoStore } from '$lib/stores/repo.svelte';
-	import { changesStore, type ChangedFileEntry, type FileChangeKind } from '$lib/stores/changes.svelte';
+	import { changesStore, type FileChangeKind } from '$lib/stores/changes.svelte';
 	import { listen } from '@tauri-apps/api/event';
 
 	let unlisten: (() => void) | null = null;
+	let mounted = true;
 
 	onMount(() => {
 		// Load files when the route mounts
@@ -14,13 +15,19 @@
 
 		// Listen for file system changes and refresh
 		const setupListener = async () => {
-			unlisten = await listen('repo-changed', () => {
+			const cb = await listen('repo-changed', () => {
 				changesStore.refresh();
 			});
+			if (mounted) {
+				unlisten = cb;
+			} else {
+				cb(); // Already unmounted — clean up immediately
+			}
 		};
 		setupListener();
 
 		return () => {
+			mounted = false;
 			if (unlisten) unlisten();
 		};
 	});
