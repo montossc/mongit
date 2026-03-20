@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { repoStore } from '$lib/stores/repo.svelte';
 	import type { CommitData, CommitNode, RefData, LayoutResult } from '$lib/graph/types';
 	import { assignLanes } from '$lib/graph/layout';
@@ -71,7 +70,7 @@
 	}
 
 	// ── Selection handlers ──
-	function handleSelectCommit(id: string): void {
+	function handleSelectCommit(id: string | null): void {
 		selectedId = id;
 	}
 
@@ -89,19 +88,15 @@
 		if (repoPath && repoPath !== loadedRepoPath) {
 			// New repo — clear stale selection before loading
 			selectedId = null;
-			loadGraphData(repoPath);
+			void loadGraphData(repoPath);
 		} else if (!repoPath) {
+			// Invalidate in-flight loads before clearing state
+			loadRequestId += 1;
 			layout = null;
 			loadedRepoPath = null;
 			selectedId = null;
 			error = null;
-		}
-	});
-
-	// ── Initial load on mount ──
-	onMount(() => {
-		if (repoStore.activeRepoPath) {
-			loadGraphData(repoStore.activeRepoPath);
+			loading = false;
 		}
 	});
 </script>

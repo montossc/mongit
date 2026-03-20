@@ -13,7 +13,7 @@
   interface Props {
     layout: LayoutResult | null;
     selectedId?: string | null;
-    onSelectCommit?: (id: string) => void;
+    onSelectCommit?: (id: string | null) => void;
     onContextAction?: (action: string, node: CommitNode) => void;
     onScrollChange?: (scrollTop: number) => void;
     onHeightChange?: (height: number) => void;
@@ -202,6 +202,7 @@
         return;
       }
       internalSelectedId = null;
+      onSelectCommit?.(null);
       hoveredId = null;
       queueRender();
       return;
@@ -331,11 +332,12 @@
     };
   });
 
-  // Re-render when layout data or theme changes.
-  // scrollTop/selectedId/hoveredId are handled by their event handlers.
+  // Re-render when layout data, theme, or controlled selection changes.
+  // scrollTop/hoveredId are handled by their event handlers.
   $effect(() => {
     layout;
     theme;
+    effectiveSelectedId;
     queueRender();
   });
 </script>
