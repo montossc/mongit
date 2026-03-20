@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use git2::{BranchType, Delta, DiffOptions, ErrorCode, Sort, Status, StatusOptions};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::GitError;
 
@@ -20,6 +20,30 @@ pub enum DiffFileStatus {
     Modified,
     Deleted,
     Renamed,
+}
+
+/// Classification of how a single file changed.
+/// Used for the dual-state changed-files model (staged + unstaged per row).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum FileChangeKind {
+    Added,
+    Modified,
+    Deleted,
+    Renamed,
+    Typechange,
+}
+
+/// A changed file with separate staged and unstaged status.
+/// This is the canonical row model for the changes workspace.
+/// Both `staged` and `unstaged` are Option — at least one will be Some.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct ChangedFileEntry {
+    /// Relative path within the repo (forward-slash separated)
+    pub path: String,
+    /// Status in the index (staged changes), None if no staged changes
+    pub staged: Option<FileChangeKind>,
+    /// Status in the working tree (unstaged changes), None if no unstaged changes
+    pub unstaged: Option<FileChangeKind>,
 }
 
 #[allow(dead_code)]
@@ -105,6 +129,8 @@ pub enum RefType {
 pub trait GitRepository: Send + Sync {
     /// Working directory status (changed + staged file counts).
     fn status(&self) -> Result<RepoStatusInfo, GitError>;
+
+    fn changed_files(&self) -> Result<Vec<ChangedFileEntry>, GitError>;
 
     /// Diff of working directory against the index.
     fn diff_workdir(&self) -> Result<Vec<DiffFileEntry>, GitError>;
@@ -200,6 +226,59 @@ impl GitRepository for Git2Repository {
             changed_files,
             staged_files,
         })
+    }
+
+    fn changed_files(&self) -> Result<Vec<ChangedFileEntry>, GitError> {
+        let repo = self.repo()?;
+        let mut opts = git2::StatusOptions::new();
+        opts.include_untracked(true).recurse_untracked_dirs(true);
+
+        let statuses = repo.statuses(Some(&mut opts))?;
+
+        let mut entries = Vec::new();
+        for entry in statuses.iter() {
+            let path = entry.path().unwrap_or("").to_string();
+            let bits = entry.status();
+
+            let staged = if bits.intersects(git2::Status::INDEX_NEW) {
+                Some(FileChangeKind::Added)
+            } else if bits.intersects(git2::Status::INDEX_MODIFIED) {
+                Some(FileChangeKind::Modified)
+            } else if bits.intersects(git2::Status::INDEX_DELETED) {
+                Some(FileChangeKind::Deleted)
+            } else if bits.intersects(git2::Status::INDEX_RENAMED) {
+                Some(FileChangeKind::Renamed)
+            } else if bits.intersects(git2::Status::INDEX_TYPECHANGE) {
+                Some(FileChangeKind::Typechange)
+            } else {
+                None
+            };
+
+            let unstaged = if bits.intersects(git2::Status::WT_NEW) {
+                Some(FileChangeKind::Added)
+            } else if bits.intersects(git2::Status::WT_MODIFIED) {
+                Some(FileChangeKind::Modified)
+            } else if bits.intersects(git2::Status::WT_DELETED) {
+                Some(FileChangeKind::Deleted)
+            } else if bits.intersects(git2::Status::WT_RENAMED) {
+                Some(FileChangeKind::Renamed)
+            } else if bits.intersects(git2::Status::WT_TYPECHANGE) {
+                Some(FileChangeKind::Typechange)
+            } else {
+                None
+            };
+
+            if staged.is_some() || unstaged.is_some() {
+                entries.push(ChangedFileEntry {
+                    path,
+                    staged,
+                    unstaged,
+                });
+            }
+        }
+
+        entries.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(entries)
     }
 
     fn diff_workdir(&self) -> Result<Vec<DiffFileEntry>, GitError> {
@@ -437,8 +516,15 @@ impl GitRepository for Git2Repository {
         let repo = self.repo()?;
 
         // Validate that file_path stays within the repo (defense-in-depth)
-        let full_path = self.path.join(file_path).canonicalize().unwrap_or_else(|_| self.path.join(file_path));
-        let repo_root = self.path.canonicalize().unwrap_or_else(|_| self.path.clone());
+        let full_path = self
+            .path
+            .join(file_path)
+            .canonicalize()
+            .unwrap_or_else(|_| self.path.join(file_path));
+        let repo_root = self
+            .path
+            .canonicalize()
+            .unwrap_or_else(|_| self.path.clone());
         if !full_path.starts_with(&repo_root) {
             return Err(GitError::InvalidArgument(format!(
                 "Path '{}' escapes repository root",
@@ -526,7 +612,10 @@ mod tests {
         assert_eq!(entries.len(), 1, "should detect exactly one changed file");
         assert_eq!(entries[0].path, "hello.txt");
         assert!(matches!(entries[0].status, DiffFileStatus::Modified));
-        assert!(!entries[0].hunks.is_empty(), "should have at least one hunk");
+        assert!(
+            !entries[0].hunks.is_empty(),
+            "should have at least one hunk"
+        );
 
         let lines = &entries[0].hunks[0].lines;
         let added_lines: Vec<_> = lines.iter().filter(|l| l.origin == '+').collect();
@@ -550,7 +639,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("create tempdir");
         let path = dir.path();
 
-        Command::new("git").args(["init"]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["init"])
+            .current_dir(path)
+            .output()
+            .unwrap();
         Command::new("git")
             .args(["config", "user.email", "test@test.com"])
             .current_dir(path)
@@ -562,7 +655,11 @@ mod tests {
             .output()
             .unwrap();
         std::fs::write(path.join("file.txt"), "content\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .output()
+            .unwrap();
         Command::new("git")
             .args(["commit", "-m", "init"])
             .current_dir(path)

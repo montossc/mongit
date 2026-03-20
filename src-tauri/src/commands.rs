@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::git::branch;
 use crate::git::{Git2Repository, GitRepository};
-use crate::git::repository::{CommitInfo, DiffFileEntry, FileContentPair, RefInfo};
+use crate::git::repository::{ChangedFileEntry, CommitInfo, DiffFileEntry, FileContentPair, RefInfo};
 use crate::git::resolver::GitResolver;
 use crate::recents::{self, RecentRepo};
 
@@ -74,6 +74,16 @@ pub async fn get_diff_workdir(path: String) -> Result<Vec<DiffFileEntry>, String
     tokio::task::spawn_blocking(move || {
         let repo = Git2Repository::open(&path);
         repo.diff_workdir().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn get_changed_files(path: String) -> Result<Vec<ChangedFileEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Git2Repository::open(&path);
+        repo.changed_files().map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
