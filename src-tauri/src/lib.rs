@@ -1,5 +1,6 @@
 mod commands;
 mod git;
+mod recents;
 mod watcher;
 
 use watcher::WatcherState;
@@ -8,6 +9,7 @@ use watcher::WatcherState;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(WatcherState::default())
         .invoke_handler(tauri::generate_handler![
             commands::greet,
@@ -22,6 +24,9 @@ pub fn run() {
             commands::fetch,
             commands::pull,
             commands::push,
+            commands::open_repo,
+            commands::get_recent_repos,
+            commands::remove_recent_repo,
             watcher::watch_repo,
             watcher::stop_watching,
         ])

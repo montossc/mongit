@@ -6,6 +6,7 @@ use crate::git::branch;
 use crate::git::{Git2Repository, GitRepository};
 use crate::git::repository::{CommitInfo, DiffFileEntry, FileContentPair, RefInfo};
 use crate::git::resolver::GitResolver;
+use crate::recents::{self, RecentRepo};
 
 /// Basic greet command to test IPC
 #[tauri::command]
@@ -175,4 +176,35 @@ pub async fn push(path: String, force_with_lease: bool) -> Result<String, String
     branch::push_origin(&path, &git, force_with_lease)
         .await
         .map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn open_repo(app: tauri::AppHandle, path: String) -> Result<RecentRepo, String> {
+    tokio::task::spawn_blocking(move || {
+        let (abs_path, display_name) = recents::validate_repo_path(&path)?;
+        let repos = recents::upsert_recent(&app, &abs_path, &display_name)?;
+        repos
+            .into_iter()
+            .next()
+            .ok_or_else(|| "Failed to store recent repository".to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn get_recent_repos(app: tauri::AppHandle) -> Result<Vec<RecentRepo>, String> {
+    tokio::task::spawn_blocking(move || recents::load_and_validate(&app))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn remove_recent_repo(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<Vec<RecentRepo>, String> {
+    tokio::task::spawn_blocking(move || recents::remove_recent(&app, &path))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
 }
