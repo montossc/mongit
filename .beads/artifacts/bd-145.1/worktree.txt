@@ -1,0 +1,1 @@
+/Users/montossc/.opencode/worktrees/mongit/task/bd-145.1-graph-detail-binding
