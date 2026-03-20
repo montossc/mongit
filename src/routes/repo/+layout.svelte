@@ -1,16 +1,21 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { repoStore } from '$lib/stores/repo.svelte';
 
 	let { children } = $props();
 
 	onMount(() => {
-		// Guard: redirect to home if no repo is active
 		if (!repoStore.activeRepoPath) {
 			goto('/');
 		}
 	});
+
+	const tabs = [
+		{ label: 'Summary', href: '/repo' },
+		{ label: 'Changes', href: '/repo/changes' },
+	] as const;
 </script>
 
 {#if repoStore.activeRepoPath}
@@ -18,14 +23,7 @@
 		<header class="repo-toolbar">
 			<div class="repo-toolbar-left">
 				<button class="back-btn" onclick={() => goto('/')} title="Back to home">
-					<svg
-						width="16"
-						height="16"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M19 12H5M12 19l-7-7 7-7" />
 					</svg>
 				</button>
@@ -35,6 +33,19 @@
 				{/if}
 			</div>
 		</header>
+
+		<nav class="repo-tabs">
+			{#each tabs as tab}
+				<a
+					href={tab.href}
+					class="repo-tab"
+					class:active={page.url.pathname === tab.href}
+					onclick={(e) => { e.preventDefault(); goto(tab.href); }}
+				>
+					{tab.label}
+				</a>
+			{/each}
+		</nav>
 
 		<div class="repo-content">
 			{@render children()}
@@ -108,6 +119,35 @@
 		padding: var(--space-1) var(--space-3);
 		background: var(--color-bg-elevated);
 		border-radius: var(--radius-sm);
+	}
+
+	.repo-tabs {
+		display: flex;
+		gap: 0;
+		padding: 0 var(--space-6);
+		background: var(--color-bg-surface);
+		border-bottom: 1px solid var(--color-border);
+		flex-shrink: 0;
+	}
+
+	.repo-tab {
+		padding: var(--space-3) var(--space-5);
+		font-size: var(--text-body-sm-size);
+		font-weight: 500;
+		color: var(--color-text-secondary);
+		text-decoration: none;
+		border-bottom: 2px solid transparent;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
+		cursor: pointer;
+	}
+
+	.repo-tab:hover {
+		color: var(--color-text-primary);
+	}
+
+	.repo-tab.active {
+		color: var(--color-accent);
+		border-bottom-color: var(--color-accent);
 	}
 
 	.repo-content {

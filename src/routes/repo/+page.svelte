@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { repoStore } from '$lib/stores/repo.svelte';
 	import { Badge } from '$lib/components/ui';
 </script>
@@ -59,6 +60,12 @@
 					Ready to commit
 				{/if}
 			</p>
+
+			{#if (repoStore.repoStatus?.changed_files ?? 0) > 0 || (repoStore.repoStatus?.staged_files ?? 0) > 0}
+				<button class="view-changes-link" onclick={() => goto('/repo/changes')}>
+					View changes →
+				</button>
+			{/if}
 		{:else}
 			<p class="fallback-message">Loading status…</p>
 		{/if}
@@ -195,5 +202,21 @@
 		font-size: var(--text-body-sm-size);
 		color: var(--color-text-muted);
 		margin: 0;
+	}
+
+	.view-changes-link {
+		margin-top: var(--space-4);
+		padding: var(--space-3) var(--space-5);
+		background: none;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		color: var(--color-accent);
+		font-size: var(--text-body-sm-size);
+		cursor: pointer;
+		transition: background var(--transition-fast);
+	}
+
+	.view-changes-link:hover {
+		background: var(--color-bg-hover);
 	}
 </style>
