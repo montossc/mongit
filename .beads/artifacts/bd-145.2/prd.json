@@ -1,0 +1,114 @@
+{
+	"beadId": "bd-145.2",
+	"prdName": "branch-tag-overlay-readability",
+	"tasks": [
+		{
+			"id": "ui-1",
+			"category": "ui",
+			"description": "Update the graph renderer so dense commits show a stable priority-ordered subset of refs plus a grouped-overflow badge instead of an unbounded inline sequence.",
+			"steps": [
+				"pnpm check passes",
+				"Manual app check in pnpm tauri dev confirms sparse commits still render normal badges",
+				"Manual app check confirms dense commits keep one-row readability with grouped overflow"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/graph/render.ts"]
+			}
+		},
+		{
+			"id": "ui-2",
+			"category": "ui",
+			"description": "Keep hitTest() synchronized with the new visible overlay model so ref and row targeting stay trustworthy after overflow grouping.",
+			"steps": [
+				"pnpm check passes",
+				"Manual app check confirms visible badges remain targetable",
+				"Manual app check confirms hidden overflow refs are not individually targetable at stale positions"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["ui-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/graph/hitTest.ts", "src/lib/graph/render.ts"]
+			}
+		},
+		{
+			"id": "testing-1",
+			"category": "testing",
+			"description": "Extend existing graph smoke-style validation with dense-ref scenarios that prove ordering, overflow, and rendering contracts remain stable.",
+			"steps": [
+				"pnpm smoke passes",
+				"Focused assertions cover dense commits with multiple local branches, remote branches, tags, and Head"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["ui-1", "ui-2"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/smoke/graph.test.ts",
+					"src/lib/graph/render.ts",
+					"src/lib/graph/hitTest.ts"
+				]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Prove the refined overlays work in the production /repo/history route without regressing graph-detail binding from bd-145.1.",
+			"steps": [
+				"pnpm check passes",
+				"pnpm build passes",
+				"cargo check passes (in src-tauri/)",
+				"Manual app check in pnpm tauri dev confirms overlay readability in /repo/history and no regression in commit selection/detail sync"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["testing-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/repo/history/+page.svelte",
+					"src/lib/graph/GraphCanvas.svelte",
+					"src/lib/graph/render.ts"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Graph rendering: src/lib/graph/render.ts (Canvas 2D)",
+			"Hit testing: src/lib/graph/hitTest.ts (mirrors render geometry)",
+			"Badge width: estimateRefBadgeWidth() shared between render and hitTest",
+			"Ref styles: getRefStyle() encodes visual language per ref type",
+			"History route: src/routes/repo/history/+page.svelte",
+			"Graph component: src/lib/graph/GraphCanvas.svelte",
+			"Smoke tests: src/lib/smoke/graph.test.ts"
+		],
+		"keyFiles": [
+			"src/lib/graph/render.ts",
+			"src/lib/graph/hitTest.ts",
+			"src/lib/smoke/graph.test.ts",
+			"src/routes/repo/history/+page.svelte",
+			"src/lib/graph/GraphCanvas.svelte"
+		],
+		"nonGoals": [
+			"New graph routes or layout algorithms",
+			"DOM/SVG overlay layers or tooltip systems",
+			"New backend IPC commands or RefData shape changes",
+			"Ref-click actions, filtering, pinning, or hiding interactions",
+			"Broader history investigation workflows"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-145.1"],
+		"parallel": false,
+		"conflicts_with": [],
+		"blocks": [],
+		"estimated_hours": 6
+	}
+}
