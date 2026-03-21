@@ -144,7 +144,11 @@
 	}
 
 	function handleSelectCommit(id: string | null) {
-		if (!layout || !id) return;
+		if (!layout) return;
+		if (!id) {
+			selectedNode = null;
+			return;
+		}
 		selectedNode = layout.nodeMap.get(id) ?? null;
 		interactionStats = { ...interactionStats, selection: interactionStats.selection + 1 };
 		validationChecklist = { ...validationChecklist, clickSelection: true, commitDetailSync: true };
