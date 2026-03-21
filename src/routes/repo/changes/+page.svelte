@@ -209,7 +209,7 @@
 											<button
 												class="hunk-action-btn stage-btn"
 												disabled={diffStore.staging}
-												onclick={() => handleStageHunk(changesStore.selectedPath!, hunkIndex)}
+										onclick={() => handleStageHunk(diffStore.selectedPath!, hunkIndex)}
 												title="Stage this hunk"
 											>
 												{#if diffStore.staging}
@@ -245,7 +245,7 @@
 											<button
 												class="hunk-action-btn unstage-btn"
 												disabled={diffStore.staging}
-												onclick={() => handleUnstageHunk(changesStore.selectedPath!, hunkIndex)}
+										onclick={() => handleUnstageHunk(diffStore.selectedPath!, hunkIndex)}
 												title="Unstage this hunk"
 											>
 												{#if diffStore.staging}

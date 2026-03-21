@@ -42,10 +42,12 @@ fn build_hunk_patch(path: &str, hunk: &DiffHunkInfo, status: &DiffFileStatus) ->
 
     match status {
         DiffFileStatus::Added => {
+            patch.push_str("new file mode 100644\n");
             patch.push_str("--- /dev/null\n");
             patch.push_str(&format!("+++ b/{path}\n"));
         }
         DiffFileStatus::Deleted => {
+            patch.push_str("deleted file mode 100644\n");
             patch.push_str(&format!("--- a/{path}\n"));
             patch.push_str("+++ /dev/null\n");
         }
@@ -67,11 +69,15 @@ fn build_hunk_patch(path: &str, hunk: &DiffHunkInfo, status: &DiffFileStatus) ->
             ' ' | '+' | '-' => {
                 patch.push(line.origin);
                 patch.push_str(&line.content);
-                // git2 content may or may not have trailing \n
-                // Don't force-add; the no-newline marker handles it
+                // Ensure each diff line ends with \n for valid patch format.
+                // If content lacks trailing newline, the subsequent '>' / '<' / '='
+                // marker will emit the "no newline" indicator on its own line.
+                if !line.content.ends_with('\n') {
+                    patch.push('\n');
+                }
             }
             '>' | '<' | '=' => {
-                // "No newline at end of file" marker
+                // "No newline at end of file" marker — must be on its own line
                 patch.push_str("\\ No newline at end of file\n");
             }
             _ => {
@@ -186,25 +192,6 @@ mod tests {
     use super::*;
     use crate::git::tests::create_test_repo;
     use std::path::Path;
-
-    /// Helper: write a file with multiple hunks separated by unchanged content.
-    fn write_multi_hunk_file(dir: &std::path::Path) {
-        // Original content (committed in create_test_repo as initial.txt)
-        // Overwrite with multi-hunk changes
-        let content = "\
-modified first line
-line 2
-line 3
-line 4
-line 5
-line 6
-line 7
-line 8
-line 9
-modified last line
-";
-        std::fs::write(dir.join("initial.txt"), content).unwrap();
-    }
 
     /// Helper: create a repo with a file that has enough lines for multi-hunk diffs.
     fn create_repo_with_content() -> (tempfile::TempDir, git2::Repository) {
