@@ -28,6 +28,9 @@ pub fn run() {
             commands::open_repo,
             commands::get_recent_repos,
             commands::remove_recent_repo,
+            commands::stage_hunk,
+            commands::unstage_hunk,
+            commands::get_diff_index,
             watcher::watch_repo,
             watcher::stop_watching,
         ])

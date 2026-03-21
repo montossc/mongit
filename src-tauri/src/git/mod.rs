@@ -3,6 +3,7 @@ pub mod cli;
 pub mod error;
 pub mod repository;
 pub mod resolver;
+pub mod staging;
 
 #[allow(unused_imports)]
 pub use cli::GitCli;

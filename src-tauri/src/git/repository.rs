@@ -135,6 +135,9 @@ pub trait GitRepository: Send + Sync {
     /// Diff of working directory against the index.
     fn diff_workdir(&self) -> Result<Vec<DiffFileEntry>, GitError>;
 
+    /// Diff of the index against HEAD (staged changes).
+    fn diff_index(&self) -> Result<Vec<DiffFileEntry>, GitError>;
+
     /// Commit log from HEAD, topological + time ordered.
     fn log(&self, max_count: usize) -> Result<Vec<CommitInfo>, GitError>;
 
@@ -295,6 +298,89 @@ impl GitRepository for Git2Repository {
             .include_typechange(true);
 
         let diff = repo.diff_index_to_workdir(None, Some(&mut opts))?;
+        let entries: RefCell<Vec<DiffFileEntry>> = RefCell::new(Vec::new());
+
+        diff.foreach(
+            &mut |delta, _| {
+                let path = delta
+                    .new_file()
+                    .path()
+                    .or_else(|| delta.old_file().path())
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+
+                let status = match delta.status() {
+                    Delta::Added => DiffFileStatus::Added,
+                    Delta::Deleted => DiffFileStatus::Deleted,
+                    Delta::Renamed => DiffFileStatus::Renamed,
+                    _ => DiffFileStatus::Modified,
+                };
+
+                entries.borrow_mut().push(DiffFileEntry {
+                    path,
+                    status,
+                    hunks: Vec::new(),
+                });
+
+                true
+            },
+            None,
+            Some(&mut |_delta, hunk| {
+                let mut entries = entries.borrow_mut();
+                if let Some(file) = entries.last_mut() {
+                    file.hunks.push(DiffHunkInfo {
+                        old_start: hunk.old_start(),
+                        old_lines: hunk.old_lines(),
+                        new_start: hunk.new_start(),
+                        new_lines: hunk.new_lines(),
+                        header: String::from_utf8_lossy(hunk.header())
+                            .trim_end_matches('\0')
+                            .to_string(),
+                        lines: Vec::new(),
+                    });
+                }
+                true
+            }),
+            Some(&mut |_delta, _hunk, line| {
+                let mut entries = entries.borrow_mut();
+                if let Some(file) = entries.last_mut() {
+                    if let Some(hunk) = file.hunks.last_mut() {
+                        hunk.lines.push(DiffLineInfo {
+                            origin: line.origin(),
+                            content: String::from_utf8_lossy(line.content()).to_string(),
+                            old_lineno: line.old_lineno(),
+                            new_lineno: line.new_lineno(),
+                        });
+                    }
+                }
+                true
+            }),
+        )?;
+
+        Ok(entries.into_inner())
+    }
+
+    fn diff_index(&self) -> Result<Vec<DiffFileEntry>, GitError> {
+        use std::cell::RefCell;
+
+        let repo = self.repo()?;
+
+        // Get HEAD tree (None for initial/unborn commits)
+        let head_tree = match repo.head() {
+            Ok(head) => Some(head.peel_to_tree()?),
+            Err(e) if e.code() == ErrorCode::UnbornBranch => None,
+            Err(e) => return Err(e.into()),
+        };
+
+        let mut opts = DiffOptions::new();
+        opts.include_typechange(true);
+
+        let diff = repo.diff_tree_to_index(
+            head_tree.as_ref(),
+            None, // current index
+            Some(&mut opts),
+        )?;
+
         let entries: RefCell<Vec<DiffFileEntry>> = RefCell::new(Vec::new());
 
         diff.foreach(

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use crate::git::branch;
+use crate::git::staging;
 use crate::git::{Git2Repository, GitRepository};
 use crate::git::repository::{ChangedFileEntry, CommitInfo, DiffFileEntry, FileContentPair, RefInfo};
 use crate::git::resolver::GitResolver;
@@ -186,6 +187,47 @@ pub async fn push(path: String, force_with_lease: bool) -> Result<String, String
     branch::push_origin(&path, &git, force_with_lease)
         .await
         .map_err(String::from)
+}
+
+// ── Staging operation commands ─────────────────────────────────────────────────
+
+/// Stage a single hunk from the working tree into the index.
+#[tauri::command]
+pub async fn stage_hunk(path: String, file_path: String, hunk_index: usize) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        staging::stage_hunk(&path, &git, &file_path, hunk_index).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Unstage a single hunk from the index back to the working tree.
+#[tauri::command]
+pub async fn unstage_hunk(
+    path: String,
+    file_path: String,
+    hunk_index: usize,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        staging::unstage_hunk(&path, &git, &file_path, hunk_index).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get staged changes (HEAD → index diff) for hunk display.
+#[tauri::command]
+pub async fn get_diff_index(path: String) -> Result<Vec<DiffFileEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Git2Repository::open(&path);
+        repo.diff_index().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }
 
 #[tauri::command]

@@ -39,6 +39,10 @@ pub enum GitError {
     #[error("{0}")]
     BranchOp(#[from] BranchOpError),
 
+    /// Staging operation error (structured, serializable for frontend)
+    #[error("{0}")]
+    StageOp(#[from] StageOpError),
+
     /// Filesystem I/O error
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
@@ -52,6 +56,9 @@ impl From<GitError> for String {
         match &err {
             GitError::BranchOp(branch_err) => {
                 serde_json::to_string(branch_err).unwrap_or_else(|_| err.to_string())
+            }
+            GitError::StageOp(stage_err) => {
+                serde_json::to_string(stage_err).unwrap_or_else(|_| err.to_string())
             }
             _ => err.to_string(),
         }
@@ -118,6 +125,77 @@ pub enum BranchOpError {
         stderr: String,
         exit_code: Option<i32>,
     },
+}
+
+// ── Staging Operation Errors ────────────────────────────────────────────
+
+/// Structured error for hunk staging operations.
+///
+/// Serializes as a discriminated union for typed frontend consumption:
+/// `{ "kind": "PatchFailed", "reason": "...", "message": "..." }`
+///
+/// Raw stderr is always preserved in the `message` field for debugging.
+#[derive(Debug, Clone, Serialize, thiserror::Error)]
+#[serde(tag = "kind")]
+pub enum StageOpError {
+    #[error("patch cannot be applied: {reason}")]
+    PatchFailed { reason: String, message: String },
+
+    #[error("hunk index {index} out of range (file has {total} hunks)")]
+    InvalidHunkIndex {
+        index: usize,
+        total: usize,
+        message: String,
+    },
+
+    #[error("file '{path}' not found in diff")]
+    FileNotInDiff { path: String, message: String },
+
+    #[error("binary file '{path}' not supported for partial staging")]
+    BinaryNotSupported { path: String, message: String },
+
+    #[error("staging operation failed: {stderr}")]
+    GenericStageFailed {
+        cmd: String,
+        stderr: String,
+        exit_code: Option<i32>,
+    },
+}
+
+/// Parse git CLI stderr into a typed `StageOpError`.
+///
+/// Matches the most common `git apply` error patterns.
+/// Falls back to `GenericStageFailed` for unrecognized stderr output.
+pub fn parse_stage_stderr(cmd: &str, stderr: &str, exit_code: Option<i32>) -> StageOpError {
+    let lower = stderr.to_lowercase();
+
+    if lower.contains("patch does not apply") || lower.contains("does not apply") {
+        return StageOpError::PatchFailed {
+            reason: "patch does not apply to current state".to_string(),
+            message: stderr.to_string(),
+        };
+    }
+
+    if lower.contains("corrupt patch") || lower.contains("invalid patch") {
+        return StageOpError::PatchFailed {
+            reason: "corrupt or invalid patch format".to_string(),
+            message: stderr.to_string(),
+        };
+    }
+
+    if lower.contains("binary") && lower.contains("patch") {
+        let path = extract_quoted(stderr).unwrap_or_default();
+        return StageOpError::BinaryNotSupported {
+            path,
+            message: stderr.to_string(),
+        };
+    }
+
+    StageOpError::GenericStageFailed {
+        cmd: cmd.to_string(),
+        stderr: stderr.to_string(),
+        exit_code,
+    }
 }
 
 /// Parse git CLI stderr into a typed `BranchOpError`.
