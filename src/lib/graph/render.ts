@@ -465,6 +465,18 @@ export function computeVisibleRefs(
 ): VisibleRefResult {
 	if (sortedRefs.length === 0) return { visible: [], overflowCount: 0 };
 
+	// Pre-compute conservative overflow badge width based on max possible overflow count.
+	// This avoids under-reserving when +N has more digits (e.g. +12 vs +3).
+	const maxOverflow = sortedRefs.length - REF_MIN_VISIBLE;
+	const overflowLabel = `+${maxOverflow}`;
+	const overflowTextWidth = Math.max(
+		REF_BADGE_MIN_TEXT_WIDTH,
+		overflowLabel.length * REF_BADGE_CHAR_WIDTH_ESTIMATE,
+	);
+	const overflowBadgeReserve =
+		Math.ceil(overflowTextWidth + REF_BADGE_PADDING_X_DEFAULT * 2) +
+		REF_LABEL_GAP;
+
 	let totalWidth = 0;
 	let visibleCount = 0;
 
@@ -480,12 +492,10 @@ export function computeVisibleRefs(
 			continue;
 		}
 
-		// Reserve space for overflow badge (+N is ~30px)
-		const overflowBadgeWidth = 30 + REF_LABEL_GAP;
 		const remaining = sortedRefs.length - (i + 1);
 		const needsOverflow = remaining > 0;
 		const widthLimit = needsOverflow
-			? REF_OVERFLOW_MAX_WIDTH - overflowBadgeWidth
+			? REF_OVERFLOW_MAX_WIDTH - overflowBadgeReserve
 			: REF_OVERFLOW_MAX_WIDTH;
 
 		if (nextTotal > widthLimit) break;

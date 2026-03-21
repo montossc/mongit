@@ -95,7 +95,8 @@ describe("computeVisibleRefs", () => {
 			{ name: "another-long-one", ref_type: "RemoteBranch", commit_id: "a" },
 		];
 		const result = computeVisibleRefs(refs);
-		expect(result.visible.length).toBeGreaterThanOrEqual(1);
+		expect(result.visible).toHaveLength(1);
+		expect(result.overflowCount).toBe(1);
 	});
 
 	it("overflows when many refs exceed width budget", () => {
@@ -118,6 +119,47 @@ describe("computeVisibleRefs", () => {
 	});
 });
 
+describe("computeVisibleRefs edge cases", () => {
+	it("respects budget boundary — refs that just fit are shown", () => {
+		// Create refs with known estimated widths to test budget boundary.
+		// Each 'ab' ref: name.length=2, textWidth=max(24, 2*7)=24, paddingX=6*2=12, badge=36
+		// With gap=6 between badges, cumulative: 36, 78, 120, 162, 204, 246, 288...
+		// REF_OVERFLOW_MAX_WIDTH=280, so 7th ref (288) would exceed budget
+		const refs: RefData[] = Array.from({ length: 8 }, (_, i) => ({
+			name: `r${i}`,
+			ref_type: "LocalBranch" as const,
+			commit_id: "a",
+		}));
+		const result = computeVisibleRefs(refs);
+		// Verify total visible width is within budget
+		let totalWidth = 0;
+		for (let i = 0; i < result.visible.length; i++) {
+			totalWidth += estimateRefBadgeWidth(result.visible[i]);
+			if (i > 0) totalWidth += 6; // REF_LABEL_GAP
+		}
+		expect(totalWidth).toBeLessThanOrEqual(REF_OVERFLOW_MAX_WIDTH);
+		expect(result.visible.length + result.overflowCount).toBe(8);
+	});
+
+	it("overflow badge reservation scales with ref count", () => {
+		// With 100 refs, overflow badge shows +99 (3 chars) — wider than +3 (2 chars)
+		const smallSet: RefData[] = Array.from({ length: 5 }, (_, i) => ({
+			name: `br-${i}`,
+			ref_type: "LocalBranch" as const,
+			commit_id: "a",
+		}));
+		const largeSet: RefData[] = Array.from({ length: 100 }, (_, i) => ({
+			name: `br-${i.toString().padStart(3, "0")}`,
+			ref_type: "LocalBranch" as const,
+			commit_id: "a",
+		}));
+		const smallResult = computeVisibleRefs(smallSet);
+		const largeResult = computeVisibleRefs(largeSet);
+		// Large set should reserve more for overflow badge, so may show fewer visible refs
+		expect(largeResult.visible.length).toBeLessThanOrEqual(smallResult.visible.length);
+	});
+});
+
 // ── Hit-test alignment with visible refs ──
 
 describe("hitTest ref alignment", () => {
@@ -134,7 +176,8 @@ describe("hitTest ref alignment", () => {
 
 		// Compute which refs should be visible
 		const sorted = sortRefsByPriority(manyRefs);
-		const { visible: visibleRefs } = computeVisibleRefs(sorted);
+		const { visible: visibleRefs, overflowCount } = computeVisibleRefs(sorted);
+		expect(overflowCount).toBeGreaterThan(0);
 
 		// Hit-test each visible badge — should return ref hit
 		const laneCount = layout.laneCount;
@@ -153,9 +196,38 @@ describe("hitTest ref alignment", () => {
 			cursorX += badgeWidth + 6; // REF_LABEL_GAP
 		}
 
+		// Hit-test immediately after last visible badge — should NOT be ref
+		const nearResult = hitTest(layout, cursorX + 5, 16, laneCount);
+		expect(nearResult.type).toBe("row");
+
 		// Hit-test far past visible badges — should return row, not ref
 		const farX = graphEndX + REF_OVERFLOW_MAX_WIDTH + 200;
 		const farResult = hitTest(layout, farX, 16, laneCount);
 		expect(farResult.type).toBe("row");
+	});
+
+	it("works with mixed ref types and priority ordering", () => {
+		const mixedRefs: RefData[] = [
+			{ name: "origin/main", ref_type: "RemoteBranch", commit_id: "commit-0" },
+			{ name: "HEAD", ref_type: "Head", commit_id: "commit-0" },
+			{ name: "main", ref_type: "LocalBranch", commit_id: "commit-0" },
+			{ name: "v1.0", ref_type: "Tag", commit_id: "commit-0" },
+		];
+
+		const commits = [{ id: "commit-0", message: "test", author_name: "test", author_email: "test@test.com", time: 0, parent_ids: [] }];
+		const layout = assignLanes(commits, mixedRefs);
+
+		const laneCount = layout.laneCount;
+		const graphEndX = 8 + laneCount * 16;
+
+		// First visible ref should be Head (highest priority)
+		const sorted = sortRefsByPriority(mixedRefs);
+		const firstBadgeWidth = estimateRefBadgeWidth(sorted[0]);
+		const hitX = graphEndX + firstBadgeWidth / 2;
+		const result = hitTest(layout, hitX, 16, laneCount);
+		expect(result.type).toBe("ref");
+		if (result.type === "ref") {
+			expect(result.ref.ref_type).toBe("Head");
+		}
 	});
 });
