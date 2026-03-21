@@ -160,6 +160,9 @@ pub enum StageOpError {
         stderr: String,
         exit_code: Option<i32>,
     },
+
+    #[error("invalid line selection: {reason}")]
+    InvalidLineSelection { reason: String, message: String },
 }
 
 /// Parse git CLI stderr into a typed `StageOpError`.

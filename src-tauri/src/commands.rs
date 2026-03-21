@@ -219,6 +219,41 @@ pub async fn unstage_hunk(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Stage selected lines from a single hunk into the index.
+#[tauri::command]
+pub async fn stage_lines(
+    path: String,
+    file_path: String,
+    hunk_index: usize,
+    line_indices: Vec<usize>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        staging::stage_lines(&path, &git, &file_path, hunk_index, &line_indices)
+            .map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Unstage selected lines from the index back to the working tree.
+#[tauri::command]
+pub async fn unstage_lines(
+    path: String,
+    file_path: String,
+    hunk_index: usize,
+    line_indices: Vec<usize>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        staging::unstage_lines(&path, &git, &file_path, hunk_index, &line_indices)
+            .map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
 /// Get staged changes (HEAD → index diff) for hunk display.
 #[tauri::command]
 pub async fn get_diff_index(path: String) -> Result<Vec<DiffFileEntry>, String> {

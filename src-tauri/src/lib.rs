@@ -30,6 +30,8 @@ pub fn run() {
             commands::remove_recent_repo,
             commands::stage_hunk,
             commands::unstage_hunk,
+            commands::stage_lines,
+            commands::unstage_lines,
             commands::get_diff_index,
             watcher::watch_repo,
             watcher::stop_watching,

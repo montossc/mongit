@@ -57,6 +57,38 @@
 		}
 	}
 
+	/** Handle staging selected lines from a hunk. */
+	async function handleStageLines(filePath: string, hunkIndex: number) {
+		const selected = diffStore.getSelectedLines('unstaged', hunkIndex);
+		if (selected.size === 0) return;
+		const success = await diffStore.stageLines(filePath, hunkIndex, [...selected]);
+		if (success) {
+			await Promise.all([diffStore.refresh(), changesStore.refresh()]);
+		}
+	}
+
+	/** Handle unstaging selected lines from a hunk. */
+	async function handleUnstageLines(filePath: string, hunkIndex: number) {
+		const selected = diffStore.getSelectedLines('staged', hunkIndex);
+		if (selected.size === 0) return;
+		const success = await diffStore.unstageLines(filePath, hunkIndex, [...selected]);
+		if (success) {
+			await Promise.all([diffStore.refresh(), changesStore.refresh()]);
+		}
+	}
+
+	/** Handle clicking a diff line to toggle selection. */
+	function handleLineClick(side: 'unstaged' | 'staged', hunkIndex: number, lineIndex: number, origin: string) {
+		// Only allow selecting change lines (+ or -), not context
+		if (origin !== '+' && origin !== '-') return;
+		diffStore.toggleLineSelection(side, hunkIndex, lineIndex);
+	}
+
+	/** Check if a line is selected. */
+	function isLineSelected(side: 'unstaged' | 'staged', hunkIndex: number, lineIndex: number): boolean {
+		return diffStore.getSelectedLines(side, hunkIndex).has(lineIndex);
+	}
+
 	/** Map a FileChangeKind to a short display label. */
 	function kindLabel(kind: FileChangeKind): string {
 		switch (kind) {
@@ -203,26 +235,51 @@
 							<div class="hunk-section">
 								<h3 class="hunk-section-title">Unstaged Changes</h3>
 								{#each diffStore.selectedFileUnstagedHunks as hunk, hunkIndex}
+									{@const selectedCount = diffStore.getSelectedChangeCount('unstaged', hunkIndex, hunk)}
 									<div class="hunk-block">
 										<div class="hunk-header">
 											<span class="hunk-header-text">{formatHunkHeader(hunk)}</span>
-											<button
-												class="hunk-action-btn stage-btn"
-												disabled={diffStore.staging}
-										onclick={() => handleStageHunk(diffStore.selectedPath!, hunkIndex)}
-												title="Stage this hunk"
-											>
-												{#if diffStore.staging}
-													<span class="btn-spinner"></span>
-												{:else}
-													Stage
+											<div class="hunk-actions">
+												{#if selectedCount > 0}
+													<button
+														class="hunk-action-btn stage-btn"
+														disabled={diffStore.staging}
+														onclick={() => handleStageLines(diffStore.selectedPath!, hunkIndex)}
+														title="Stage selected lines"
+													>
+														{#if diffStore.staging}
+															<span class="btn-spinner"></span>
+														{:else}
+															Stage ({selectedCount})
+														{/if}
+													</button>
 												{/if}
-											</button>
+												<button
+													class="hunk-action-btn stage-btn"
+													disabled={diffStore.staging}
+													onclick={() => handleStageHunk(diffStore.selectedPath!, hunkIndex)}
+													title="Stage this hunk"
+												>
+													{#if diffStore.staging}
+														<span class="btn-spinner"></span>
+													{:else}
+														Stage Hunk
+													{/if}
+												</button>
+											</div>
 										</div>
 										<div class="hunk-lines">
-											{#each hunk.lines as line}
+											{#each hunk.lines as line, lineIdx}
 												{#if line.origin === ' ' || line.origin === '+' || line.origin === '-'}
-													<div class="diff-line {lineClass(line.origin)}">
+													<!-- svelte-ignore a11y_click_events_have_key_events -->
+													<div
+														class="diff-line {lineClass(line.origin)}"
+														class:line-selectable={line.origin === '+' || line.origin === '-'}
+														class:line-selected={isLineSelected('unstaged', hunkIndex, lineIdx)}
+														role={line.origin !== ' ' ? 'option' : undefined}
+														aria-selected={line.origin !== ' ' ? isLineSelected('unstaged', hunkIndex, lineIdx) : undefined}
+														onclick={() => handleLineClick('unstaged', hunkIndex, lineIdx, line.origin)}
+													>
 														<span class="line-origin">{line.origin}</span>
 														<span class="line-content">{line.content}</span>
 													</div>
@@ -239,26 +296,51 @@
 							<div class="hunk-section">
 								<h3 class="hunk-section-title">Staged Changes</h3>
 								{#each diffStore.selectedFileStagedHunks as hunk, hunkIndex}
+									{@const selectedCount = diffStore.getSelectedChangeCount('staged', hunkIndex, hunk)}
 									<div class="hunk-block">
 										<div class="hunk-header">
 											<span class="hunk-header-text">{formatHunkHeader(hunk)}</span>
-											<button
-												class="hunk-action-btn unstage-btn"
-												disabled={diffStore.staging}
-										onclick={() => handleUnstageHunk(diffStore.selectedPath!, hunkIndex)}
-												title="Unstage this hunk"
-											>
-												{#if diffStore.staging}
-													<span class="btn-spinner"></span>
-												{:else}
-													Unstage
+											<div class="hunk-actions">
+												{#if selectedCount > 0}
+													<button
+														class="hunk-action-btn unstage-btn"
+														disabled={diffStore.staging}
+														onclick={() => handleUnstageLines(diffStore.selectedPath!, hunkIndex)}
+														title="Unstage selected lines"
+													>
+														{#if diffStore.staging}
+															<span class="btn-spinner"></span>
+														{:else}
+															Unstage ({selectedCount})
+														{/if}
+													</button>
 												{/if}
-											</button>
+												<button
+													class="hunk-action-btn unstage-btn"
+													disabled={diffStore.staging}
+													onclick={() => handleUnstageHunk(diffStore.selectedPath!, hunkIndex)}
+													title="Unstage this hunk"
+												>
+													{#if diffStore.staging}
+														<span class="btn-spinner"></span>
+													{:else}
+														Unstage Hunk
+													{/if}
+												</button>
+											</div>
 										</div>
 										<div class="hunk-lines">
-											{#each hunk.lines as line}
+											{#each hunk.lines as line, lineIdx}
 												{#if line.origin === ' ' || line.origin === '+' || line.origin === '-'}
-													<div class="diff-line {lineClass(line.origin)}">
+													<!-- svelte-ignore a11y_click_events_have_key_events -->
+													<div
+														class="diff-line {lineClass(line.origin)}"
+														class:line-selectable={line.origin === '+' || line.origin === '-'}
+														class:line-selected={isLineSelected('staged', hunkIndex, lineIdx)}
+														role={line.origin !== ' ' ? 'option' : undefined}
+														aria-selected={line.origin !== ' ' ? isLineSelected('staged', hunkIndex, lineIdx) : undefined}
+														onclick={() => handleLineClick('staged', hunkIndex, lineIdx, line.origin)}
+													>
 														<span class="line-origin">{line.origin}</span>
 														<span class="line-content">{line.content}</span>
 													</div>
@@ -549,6 +631,13 @@
 		justify-content: center;
 	}
 
+	.hunk-actions {
+		display: flex;
+		gap: var(--space-2);
+		align-items: center;
+		flex-shrink: 0;
+	}
+
 	.hunk-action-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
@@ -625,5 +714,25 @@
 	.line-content {
 		flex: 1;
 		overflow-x: auto;
+	}
+
+	/* ── Line selection ──────────────────────────────────────────── */
+
+	.diff-line.line-selectable {
+		cursor: pointer;
+	}
+
+	.diff-line.line-selectable:hover {
+		filter: brightness(0.92);
+	}
+
+	.diff-line.line-selected.line-add {
+		background: color-mix(in srgb, var(--color-success) 30%, transparent);
+		box-shadow: inset 3px 0 0 var(--color-success);
+	}
+
+	.diff-line.line-selected.line-del {
+		background: color-mix(in srgb, var(--color-danger) 30%, transparent);
+		box-shadow: inset 3px 0 0 var(--color-danger);
 	}
 </style>
