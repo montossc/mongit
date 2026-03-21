@@ -6,6 +6,8 @@ import {
 	TEXT_PADDING_LEFT,
 	REF_LABEL_GAP,
 	estimateRefBadgeWidth,
+	sortRefsByPriority,
+	computeVisibleRefs,
 } from "./render";
 import type { CommitNode, LayoutResult, RefData } from "./types";
 
@@ -50,7 +52,10 @@ export function hitTest(
 		const refZoneStart = graphEndX;
 		let cursorX = refZoneStart;
 
-		for (const ref of node.refs) {
+		const sorted = sortRefsByPriority(node.refs);
+		const { visible: visibleRefs } = computeVisibleRefs(sorted);
+
+		for (const ref of visibleRefs) {
 			const badgeWidth = estimateRefBadgeWidth(ref);
 			if (canvasX >= cursorX && canvasX <= cursorX + badgeWidth) {
 				return { type: "ref", node, ref };

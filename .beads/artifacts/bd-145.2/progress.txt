@@ -1,0 +1,47 @@
+# Progress Log
+
+Bead: bd-145.2
+Started: 2026-03-21
+
+## Codebase Patterns
+
+<!-- Consolidate reusable patterns here -->
+
+---
+
+<!-- Task logs below - APPEND ONLY -->
+
+---
+
+## ui-1: Ref priority + grouped-overflow rendering — DONE
+- Added refPriority(), sortRefsByPriority(), computeVisibleRefs() to render.ts
+- Updated drawRefLabels() to sort→compute→draw visible→draw +N overflow
+- Commit: d274728
+
+## ui-2: Align hitTest with visible overlay — DONE
+- Updated hitTest.ts to use sortRefsByPriority + computeVisibleRefs
+- Only visible refs are hit-targetable
+- Commit: fca20d0
+
+## testing-1: Dense-ref regression tests — DONE
+- 7 new tests: sorting, overflow, hit-test alignment
+- All 10 tests pass
+- Commit: ac4e58c
+
+## integration-1: Full verification — DONE
+- pnpm check: 0 errors
+- pnpm build: success
+- cargo check: success
+- vitest: 11 tests pass
+
+## Code review fixes — DONE
+- Dynamic overflow badge width (was hardcoded 30px)
+- 3 additional test cases (budget boundary, scaling, mixed types)
+- Near-boundary hit-test added
+- Total: 14 tests pass
+- Commit: 0008f71
+
+## Known limitations (documented, not fixed)
+- hitTest uses estimated widths, render uses measured (no canvas in hitTest)
+- Pre-existing x-origin offset: render starts at graphTextStartX-4, hitTest at graphEndX
+- REF_MIN_VISIBLE=1 allows one wide ref to exceed budget (by design)

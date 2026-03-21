@@ -69,6 +69,15 @@
 		{:else}
 			<p class="fallback-message">Loading status…</p>
 		{/if}
+
+		<!-- History Entry -->
+		<button class="history-btn" onclick={() => goto('/repo/history')}>
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<circle cx="12" cy="12" r="10" />
+				<polyline points="12 6 12 12 16 14" />
+			</svg>
+			View History
+		</button>
 	</div>
 </div>
 
@@ -204,6 +213,7 @@
 		margin: 0;
 	}
 
+	/* ── View Changes ── */
 	.view-changes-link {
 		margin-top: var(--space-4);
 		padding: var(--space-3) var(--space-5);
@@ -218,5 +228,25 @@
 
 	.view-changes-link:hover {
 		background: var(--color-bg-hover);
+	}
+
+	/* ── History Entry ── */
+	.history-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-3) var(--space-5);
+		background: var(--color-accent);
+		color: var(--color-bg);
+		border: none;
+		border-radius: var(--radius-sm);
+		font-size: var(--text-body-sm-size);
+		font-weight: 500;
+		cursor: pointer;
+		transition: background var(--transition-fast);
+	}
+
+	.history-btn:hover {
+		filter: brightness(1.1);
 	}
 </style>

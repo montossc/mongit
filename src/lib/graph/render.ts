@@ -15,6 +15,11 @@ export const REF_BADGE_CHAR_WIDTH_ESTIMATE = 7;
 export const REF_BADGE_PADDING_X_DEFAULT = 6;
 export const REF_BADGE_PADDING_X_HEAD = 7;
 
+/** Max pixel width for ref badges before overflow kicks in. */
+export const REF_OVERFLOW_MAX_WIDTH = 280;
+/** Min refs to always show (even if they exceed width). */
+const REF_MIN_VISIBLE = 1;
+
 export interface GraphTheme {
 	colors: string[];
 	bgColor: string;
@@ -426,6 +431,85 @@ export function estimateRefBadgeWidth(
 	return Math.ceil(textWidth + paddingX * 2);
 }
 
+/** Priority order: Head (0) > LocalBranch (1) > Tag (2) > RemoteBranch (3) */
+function refPriority(ref: RefData): number {
+	switch (ref.ref_type) {
+		case "Head":
+			return 0;
+		case "LocalBranch":
+			return 1;
+		case "Tag":
+			return 2;
+		case "RemoteBranch":
+			return 3;
+		default:
+			return 4;
+	}
+}
+
+/** Sort refs by display priority (highest first), stable within same priority. */
+export function sortRefsByPriority(refs: RefData[]): RefData[] {
+	if (refs.length <= 1) return refs;
+	return [...refs].sort((a, b) => refPriority(a) - refPriority(b));
+}
+
+export interface VisibleRefResult {
+	visible: RefData[];
+	overflowCount: number;
+}
+
+/** Determine which sorted refs fit within the overflow width budget. */
+export function computeVisibleRefs(
+	sortedRefs: RefData[],
+	measureText?: (text: string, isHead: boolean) => number,
+): VisibleRefResult {
+	if (sortedRefs.length === 0) return { visible: [], overflowCount: 0 };
+
+	// Pre-compute conservative overflow badge width based on max possible overflow count.
+	// This avoids under-reserving when +N has more digits (e.g. +12 vs +3).
+	const maxOverflow = sortedRefs.length - REF_MIN_VISIBLE;
+	const overflowLabel = `+${maxOverflow}`;
+	const overflowTextWidth = Math.max(
+		REF_BADGE_MIN_TEXT_WIDTH,
+		overflowLabel.length * REF_BADGE_CHAR_WIDTH_ESTIMATE,
+	);
+	const overflowBadgeReserve =
+		Math.ceil(overflowTextWidth + REF_BADGE_PADDING_X_DEFAULT * 2) +
+		REF_LABEL_GAP;
+
+	let totalWidth = 0;
+	let visibleCount = 0;
+
+	for (let i = 0; i < sortedRefs.length; i++) {
+		const badgeWidth = estimateRefBadgeWidth(sortedRefs[i], measureText);
+		const gap = i > 0 ? REF_LABEL_GAP : 0;
+		const nextTotal = totalWidth + badgeWidth + gap;
+
+		// Always show at least REF_MIN_VISIBLE refs
+		if (i < REF_MIN_VISIBLE) {
+			totalWidth = nextTotal;
+			visibleCount = i + 1;
+			continue;
+		}
+
+		const remaining = sortedRefs.length - (i + 1);
+		const needsOverflow = remaining > 0;
+		const widthLimit = needsOverflow
+			? REF_OVERFLOW_MAX_WIDTH - overflowBadgeReserve
+			: REF_OVERFLOW_MAX_WIDTH;
+
+		if (nextTotal > widthLimit) break;
+
+		totalWidth = nextTotal;
+		visibleCount = i + 1;
+	}
+
+	return {
+		visible: sortedRefs.slice(0, visibleCount),
+		overflowCount: sortedRefs.length - visibleCount,
+	};
+}
+
 function drawRefLabels(
 	ctx: CanvasRenderingContext2D,
 	nodes: CommitNode[],
@@ -462,7 +546,13 @@ function drawRefLabels(
 		const yCenter = rowToY(node.row, scrollTop);
 		let cursorX = xStart;
 
-		for (const ref of node.refs) {
+		const sorted = sortRefsByPriority(node.refs);
+		const { visible: visibleRefs, overflowCount } = computeVisibleRefs(
+			sorted,
+			measureBadgeText,
+		);
+
+		for (const ref of visibleRefs) {
 			const isHead = ref.ref_type === "Head";
 			const badgeWidth = estimateRefBadgeWidth(ref, measureBadgeText);
 			const height = 16;
@@ -485,6 +575,28 @@ function drawRefLabels(
 			ctx.fillText(ref.name, cursorX + paddingX, yCenter + 0.5);
 
 			cursorX += badgeWidth + REF_LABEL_GAP;
+		}
+
+		// Draw overflow badge if refs were hidden
+		if (overflowCount > 0) {
+			const label = `+${overflowCount}`;
+			setBadgeFont(false);
+			const textW = ctx.measureText(label).width;
+			const oPadX = REF_BADGE_PADDING_X_DEFAULT;
+			const oBadgeW = Math.ceil(textW + oPadX * 2);
+			const height = 16;
+			const y = yCenter - height / 2;
+
+			roundedRectPath(ctx, cursorX, y, oBadgeW, height, 4);
+			ctx.fillStyle = withAlpha(theme.textSecondary, 0.12);
+			ctx.fill();
+
+			ctx.strokeStyle = withAlpha(theme.textSecondary, 0.35);
+			ctx.lineWidth = 1;
+			ctx.stroke();
+
+			ctx.fillStyle = theme.textSecondary;
+			ctx.fillText(label, cursorX + oPadX, yCenter + 0.5);
 		}
 	}
 }

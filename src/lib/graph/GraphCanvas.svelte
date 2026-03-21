@@ -12,7 +12,8 @@
 
   interface Props {
     layout: LayoutResult | null;
-    onSelectCommit?: (id: string) => void;
+    selectedId?: string | null;
+    onSelectCommit?: (id: string | null) => void;
     onContextAction?: (action: string, node: CommitNode) => void;
     onScrollChange?: (scrollTop: number) => void;
     onHeightChange?: (height: number) => void;
@@ -22,6 +23,7 @@
 
   let {
     layout,
+    selectedId: controlledSelectedId,
     onSelectCommit,
     onContextAction,
     onScrollChange,
@@ -35,8 +37,11 @@
   let ctx = $state<CanvasRenderingContext2D | null>(null);
 
   let scrollTop = $state(0);
-  let selectedId = $state<string | null>(null);
+  let internalSelectedId = $state<string | null>(null);
   let hoveredId = $state<string | null>(null);
+  const effectiveSelectedId = $derived(
+    controlledSelectedId !== undefined ? controlledSelectedId : internalSelectedId
+  );
   let contextMenu = $state<{ node: CommitNode; x: number; y: number } | null>(null);
 
   let width = $state(0);
@@ -85,7 +90,7 @@
       canvasWidth: width,
       canvasHeight: height,
       scrollTop,
-      selectedId,
+      selectedId: effectiveSelectedId,
       hoveredId,
       laneCount: layout.laneCount
     });
@@ -128,7 +133,7 @@
   }
 
   function applySelection(node: CommitNode): void {
-    selectedId = node.data.id;
+    internalSelectedId = node.data.id;
     onSelectCommit?.(node.data.id);
     queueRender();
   }
@@ -196,7 +201,8 @@
         contextMenu = null;
         return;
       }
-      selectedId = null;
+      internalSelectedId = null;
+      onSelectCommit?.(null);
       hoveredId = null;
       queueRender();
       return;
@@ -204,7 +210,7 @@
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      const selectedNode = nodeById(selectedId);
+      const selectedNode = nodeById(effectiveSelectedId);
       const nextRow = Math.min(layout.nodes.length - 1, (selectedNode?.row ?? -1) + 1);
       const next = nodeByRow(nextRow);
       if (next) applySelection(next);
@@ -213,7 +219,7 @@
 
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      const selectedNode = nodeById(selectedId);
+      const selectedNode = nodeById(effectiveSelectedId);
       const prevRow = Math.max(0, (selectedNode?.row ?? 1) - 1);
       const prev = nodeByRow(prevRow);
       if (prev) applySelection(prev);
@@ -244,7 +250,7 @@
     if (event.key === 'PageDown') {
       event.preventDefault();
       const rowsPerPage = Math.max(1, Math.floor(height / ROW_HEIGHT));
-      const selectedNode = nodeById(selectedId);
+      const selectedNode = nodeById(effectiveSelectedId);
       const targetRow = Math.min(layout.nodes.length - 1, (selectedNode?.row ?? 0) + rowsPerPage);
       const target = nodeByRow(targetRow);
       if (target) applySelection(target);
@@ -254,7 +260,7 @@
     if (event.key === 'PageUp') {
       event.preventDefault();
       const rowsPerPage = Math.max(1, Math.floor(height / ROW_HEIGHT));
-      const selectedNode = nodeById(selectedId);
+      const selectedNode = nodeById(effectiveSelectedId);
       const targetRow = Math.max(0, (selectedNode?.row ?? 0) - rowsPerPage);
       const target = nodeByRow(targetRow);
       if (target) applySelection(target);
@@ -263,8 +269,8 @@
 
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (selectedId) {
-        onSelectCommit?.(selectedId);
+      if (effectiveSelectedId) {
+        onSelectCommit?.(effectiveSelectedId);
       }
     }
   }
@@ -326,11 +332,12 @@
     };
   });
 
-  // Re-render when layout data or theme changes.
-  // scrollTop/selectedId/hoveredId are handled by their event handlers.
+  // Re-render when layout data, theme, or controlled selection changes.
+  // scrollTop/hoveredId are handled by their event handlers.
   $effect(() => {
     layout;
     theme;
+    effectiveSelectedId;
     queueRender();
   });
 </script>
