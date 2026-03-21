@@ -81,6 +81,45 @@ impl GitCli {
         }
     }
 
+    /// Run a git command with data piped to stdin.
+    ///
+    /// Used for `git apply --cached` where the patch is sent via stdin.
+    /// Spawns a subprocess, writes `stdin_data`, then waits for completion.
+    pub(crate) fn run_git_with_stdin(
+        &self,
+        args: &[&str],
+        stdin_data: &[u8],
+    ) -> Result<String, GitError> {
+        use std::io::Write;
+        use std::process::Stdio;
+
+        let path_str = self.path.to_string_lossy();
+        let mut child = Command::new(&self.git_executable)
+            .arg("-C")
+            .arg(path_str.as_ref())
+            .args(args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(stdin_data)?;
+        }
+
+        let output = child.wait_with_output()?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            Err(GitError::CommandFailed {
+                cmd: args.join(" "),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+                exit_code: output.status.code(),
+            })
+        }
+    }
+
     /// Run a git command asynchronously using `tokio::process::Command`.
     ///
     /// Designed for remote operations (fetch, pull, push) that may block for

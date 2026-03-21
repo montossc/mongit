@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use git2::{BranchType, Delta, DiffOptions, ErrorCode, Sort, Status, StatusOptions};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::GitError;
 
@@ -20,6 +20,30 @@ pub enum DiffFileStatus {
     Modified,
     Deleted,
     Renamed,
+}
+
+/// Classification of how a single file changed.
+/// Used for the dual-state changed-files model (staged + unstaged per row).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum FileChangeKind {
+    Added,
+    Modified,
+    Deleted,
+    Renamed,
+    Typechange,
+}
+
+/// A changed file with separate staged and unstaged status.
+/// This is the canonical row model for the changes workspace.
+/// Both `staged` and `unstaged` are Option — at least one will be Some.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct ChangedFileEntry {
+    /// Relative path within the repo (forward-slash separated)
+    pub path: String,
+    /// Status in the index (staged changes), None if no staged changes
+    pub staged: Option<FileChangeKind>,
+    /// Status in the working tree (unstaged changes), None if no unstaged changes
+    pub unstaged: Option<FileChangeKind>,
 }
 
 #[allow(dead_code)]
@@ -106,8 +130,13 @@ pub trait GitRepository: Send + Sync {
     /// Working directory status (changed + staged file counts).
     fn status(&self) -> Result<RepoStatusInfo, GitError>;
 
+    fn changed_files(&self) -> Result<Vec<ChangedFileEntry>, GitError>;
+
     /// Diff of working directory against the index.
     fn diff_workdir(&self) -> Result<Vec<DiffFileEntry>, GitError>;
+
+    /// Diff of the index against HEAD (staged changes).
+    fn diff_index(&self) -> Result<Vec<DiffFileEntry>, GitError>;
 
     /// Commit log from HEAD, topological + time ordered.
     fn log(&self, max_count: usize) -> Result<Vec<CommitInfo>, GitError>;
@@ -202,6 +231,62 @@ impl GitRepository for Git2Repository {
         })
     }
 
+    fn changed_files(&self) -> Result<Vec<ChangedFileEntry>, GitError> {
+        let repo = self.repo()?;
+        let mut opts = git2::StatusOptions::new();
+        opts.include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .renames_head_to_index(true)
+            .renames_index_to_workdir(true);
+
+        let statuses = repo.statuses(Some(&mut opts))?;
+
+        let mut entries = Vec::new();
+        for entry in statuses.iter() {
+            let path = entry.path().unwrap_or("").to_string();
+            let bits = entry.status();
+
+            let staged = if bits.intersects(git2::Status::INDEX_RENAMED) {
+                Some(FileChangeKind::Renamed)
+            } else if bits.intersects(git2::Status::INDEX_TYPECHANGE) {
+                Some(FileChangeKind::Typechange)
+            } else if bits.intersects(git2::Status::INDEX_NEW) {
+                Some(FileChangeKind::Added)
+            } else if bits.intersects(git2::Status::INDEX_MODIFIED) {
+                Some(FileChangeKind::Modified)
+            } else if bits.intersects(git2::Status::INDEX_DELETED) {
+                Some(FileChangeKind::Deleted)
+            } else {
+                None
+            };
+
+            let unstaged = if bits.intersects(git2::Status::WT_RENAMED) {
+                Some(FileChangeKind::Renamed)
+            } else if bits.intersects(git2::Status::WT_TYPECHANGE) {
+                Some(FileChangeKind::Typechange)
+            } else if bits.intersects(git2::Status::WT_NEW) {
+                Some(FileChangeKind::Added)
+            } else if bits.intersects(git2::Status::WT_MODIFIED) {
+                Some(FileChangeKind::Modified)
+            } else if bits.intersects(git2::Status::WT_DELETED) {
+                Some(FileChangeKind::Deleted)
+            } else {
+                None
+            };
+
+            if staged.is_some() || unstaged.is_some() {
+                entries.push(ChangedFileEntry {
+                    path,
+                    staged,
+                    unstaged,
+                });
+            }
+        }
+
+        entries.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(entries)
+    }
+
     fn diff_workdir(&self) -> Result<Vec<DiffFileEntry>, GitError> {
         use std::cell::RefCell;
 
@@ -213,6 +298,89 @@ impl GitRepository for Git2Repository {
             .include_typechange(true);
 
         let diff = repo.diff_index_to_workdir(None, Some(&mut opts))?;
+        let entries: RefCell<Vec<DiffFileEntry>> = RefCell::new(Vec::new());
+
+        diff.foreach(
+            &mut |delta, _| {
+                let path = delta
+                    .new_file()
+                    .path()
+                    .or_else(|| delta.old_file().path())
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+
+                let status = match delta.status() {
+                    Delta::Added => DiffFileStatus::Added,
+                    Delta::Deleted => DiffFileStatus::Deleted,
+                    Delta::Renamed => DiffFileStatus::Renamed,
+                    _ => DiffFileStatus::Modified,
+                };
+
+                entries.borrow_mut().push(DiffFileEntry {
+                    path,
+                    status,
+                    hunks: Vec::new(),
+                });
+
+                true
+            },
+            None,
+            Some(&mut |_delta, hunk| {
+                let mut entries = entries.borrow_mut();
+                if let Some(file) = entries.last_mut() {
+                    file.hunks.push(DiffHunkInfo {
+                        old_start: hunk.old_start(),
+                        old_lines: hunk.old_lines(),
+                        new_start: hunk.new_start(),
+                        new_lines: hunk.new_lines(),
+                        header: String::from_utf8_lossy(hunk.header())
+                            .trim_end_matches('\0')
+                            .to_string(),
+                        lines: Vec::new(),
+                    });
+                }
+                true
+            }),
+            Some(&mut |_delta, _hunk, line| {
+                let mut entries = entries.borrow_mut();
+                if let Some(file) = entries.last_mut() {
+                    if let Some(hunk) = file.hunks.last_mut() {
+                        hunk.lines.push(DiffLineInfo {
+                            origin: line.origin(),
+                            content: String::from_utf8_lossy(line.content()).to_string(),
+                            old_lineno: line.old_lineno(),
+                            new_lineno: line.new_lineno(),
+                        });
+                    }
+                }
+                true
+            }),
+        )?;
+
+        Ok(entries.into_inner())
+    }
+
+    fn diff_index(&self) -> Result<Vec<DiffFileEntry>, GitError> {
+        use std::cell::RefCell;
+
+        let repo = self.repo()?;
+
+        // Get HEAD tree (None for initial/unborn commits)
+        let head_tree = match repo.head() {
+            Ok(head) => Some(head.peel_to_tree()?),
+            Err(e) if e.code() == ErrorCode::UnbornBranch => None,
+            Err(e) => return Err(e.into()),
+        };
+
+        let mut opts = DiffOptions::new();
+        opts.include_typechange(true);
+
+        let diff = repo.diff_tree_to_index(
+            head_tree.as_ref(),
+            None, // current index
+            Some(&mut opts),
+        )?;
+
         let entries: RefCell<Vec<DiffFileEntry>> = RefCell::new(Vec::new());
 
         diff.foreach(
@@ -437,8 +605,15 @@ impl GitRepository for Git2Repository {
         let repo = self.repo()?;
 
         // Validate that file_path stays within the repo (defense-in-depth)
-        let full_path = self.path.join(file_path).canonicalize().unwrap_or_else(|_| self.path.join(file_path));
-        let repo_root = self.path.canonicalize().unwrap_or_else(|_| self.path.clone());
+        let full_path = self
+            .path
+            .join(file_path)
+            .canonicalize()
+            .unwrap_or_else(|_| self.path.join(file_path));
+        let repo_root = self
+            .path
+            .canonicalize()
+            .unwrap_or_else(|_| self.path.clone());
         if !full_path.starts_with(&repo_root) {
             return Err(GitError::InvalidArgument(format!(
                 "Path '{}' escapes repository root",
@@ -526,7 +701,10 @@ mod tests {
         assert_eq!(entries.len(), 1, "should detect exactly one changed file");
         assert_eq!(entries[0].path, "hello.txt");
         assert!(matches!(entries[0].status, DiffFileStatus::Modified));
-        assert!(!entries[0].hunks.is_empty(), "should have at least one hunk");
+        assert!(
+            !entries[0].hunks.is_empty(),
+            "should have at least one hunk"
+        );
 
         let lines = &entries[0].hunks[0].lines;
         let added_lines: Vec<_> = lines.iter().filter(|l| l.origin == '+').collect();
@@ -550,7 +728,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("create tempdir");
         let path = dir.path();
 
-        Command::new("git").args(["init"]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["init"])
+            .current_dir(path)
+            .output()
+            .unwrap();
         Command::new("git")
             .args(["config", "user.email", "test@test.com"])
             .current_dir(path)
@@ -562,7 +744,11 @@ mod tests {
             .output()
             .unwrap();
         std::fs::write(path.join("file.txt"), "content\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .output()
+            .unwrap();
         Command::new("git")
             .args(["commit", "-m", "init"])
             .current_dir(path)

@@ -3,6 +3,7 @@ pub mod cli;
 pub mod error;
 pub mod repository;
 pub mod resolver;
+pub mod staging;
 
 #[allow(unused_imports)]
 pub use cli::GitCli;
@@ -17,6 +18,7 @@ pub use repository::{RefInfo, RefType};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git::repository::FileChangeKind;
     use std::path::Path;
 
     /// Create a temporary git repository with an initial commit.
@@ -43,9 +45,14 @@ mod tests {
             // Write a test file so the tree isn't empty
             let file_path = dir.path().join("README.md");
             std::fs::write(&file_path, "# Test repo\n").expect("Failed to write README");
+            let initial_path = dir.path().join("initial.txt");
+            std::fs::write(&initial_path, "initial content\n").expect("Failed to write initial.txt");
             index
                 .add_path(Path::new("README.md"))
                 .expect("Failed to add to index");
+            index
+                .add_path(Path::new("initial.txt"))
+                .expect("Failed to add initial.txt to index");
             index.write().expect("Failed to write index");
             index.write_tree().expect("Failed to write tree")
         };
@@ -185,6 +192,103 @@ mod tests {
         let repo = Git2Repository::open(path);
         let status = repo.status().expect("status should work");
         assert_eq!(status.changed_files, 1);
+    }
+
+    #[test]
+    fn test_changed_files_modified_file() {
+        let (dir, _) = create_test_repo();
+        let repo = Git2Repository::open(dir.path());
+        std::fs::write(dir.path().join("initial.txt"), "modified content").unwrap();
+        let files = repo.changed_files().unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "initial.txt");
+        assert_eq!(files[0].staged, None);
+        assert_eq!(files[0].unstaged, Some(FileChangeKind::Modified));
+    }
+
+    #[test]
+    fn test_changed_files_new_untracked_file() {
+        let (dir, _) = create_test_repo();
+        let repo = Git2Repository::open(dir.path());
+        std::fs::write(dir.path().join("new.txt"), "new content").unwrap();
+        let files = repo.changed_files().unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "new.txt");
+        assert_eq!(files[0].staged, None);
+        assert_eq!(files[0].unstaged, Some(FileChangeKind::Added));
+    }
+
+    #[test]
+    fn test_changed_files_staged_only() {
+        let (dir, _) = create_test_repo();
+        let repo = Git2Repository::open(dir.path());
+        std::fs::write(dir.path().join("staged.txt"), "staged content").unwrap();
+        let bare = git2::Repository::open(dir.path()).unwrap();
+        let mut index = bare.index().unwrap();
+        index.add_path(std::path::Path::new("staged.txt")).unwrap();
+        index.write().unwrap();
+        let files = repo.changed_files().unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "staged.txt");
+        assert_eq!(files[0].staged, Some(FileChangeKind::Added));
+        assert_eq!(files[0].unstaged, None);
+    }
+
+    #[test]
+    fn test_changed_files_partially_staged() {
+        let (dir, _) = create_test_repo();
+        let repo = Git2Repository::open(dir.path());
+        std::fs::write(dir.path().join("initial.txt"), "staged version").unwrap();
+        let bare = git2::Repository::open(dir.path()).unwrap();
+        let mut index = bare.index().unwrap();
+        index.add_path(std::path::Path::new("initial.txt")).unwrap();
+        index.write().unwrap();
+        std::fs::write(dir.path().join("initial.txt"), "unstaged version").unwrap();
+        let files = repo.changed_files().unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "initial.txt");
+        assert_eq!(files[0].staged, Some(FileChangeKind::Modified));
+        assert_eq!(files[0].unstaged, Some(FileChangeKind::Modified));
+    }
+
+    #[test]
+    fn test_changed_files_deleted() {
+        let (dir, _) = create_test_repo();
+        let repo = Git2Repository::open(dir.path());
+        std::fs::remove_file(dir.path().join("initial.txt")).unwrap();
+        let files = repo.changed_files().unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "initial.txt");
+        assert_eq!(files[0].staged, None);
+        assert_eq!(files[0].unstaged, Some(FileChangeKind::Deleted));
+    }
+
+    #[test]
+    fn test_changed_files_clean_repo() {
+        let (dir, _) = create_test_repo();
+        let repo = Git2Repository::open(dir.path());
+        let files = repo.changed_files().unwrap();
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_changed_files_invalid_path() {
+        let repo = Git2Repository::open("/nonexistent/path");
+        assert!(repo.changed_files().is_err());
+    }
+
+    #[test]
+    fn test_changed_files_sorted_by_path() {
+        let (dir, _) = create_test_repo();
+        let repo = Git2Repository::open(dir.path());
+        std::fs::write(dir.path().join("z-file.txt"), "z").unwrap();
+        std::fs::write(dir.path().join("a-file.txt"), "a").unwrap();
+        std::fs::write(dir.path().join("m-file.txt"), "m").unwrap();
+        let files = repo.changed_files().unwrap();
+        assert_eq!(files.len(), 3);
+        assert_eq!(files[0].path, "a-file.txt");
+        assert_eq!(files[1].path, "m-file.txt");
+        assert_eq!(files[2].path, "z-file.txt");
     }
 
     #[test]

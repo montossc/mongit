@@ -1,0 +1,114 @@
+{
+	"beadId": "bd-20d.1",
+	"prdName": "changed-files-model-workspace-list",
+	"tasks": [
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"description": "Extend the repo diff/status backend so the changes workspace can render one stable row per changed file with staged and unstaged state together.",
+			"steps": [
+				"cargo check passes after changes",
+				"Backend tests cover modified, added, deleted, renamed, staged-only, unstaged-only, and partially staged files",
+				"Invalid repo paths return structured errors, not panics"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src-tauri/src/git/repository.rs",
+					"src-tauri/src/commands.rs",
+					"src-tauri/src/lib.rs"
+				]
+			}
+		},
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"description": "Refine frontend store state so the production changes workspace can load file-list metadata, track active selection, and refresh predictably.",
+			"steps": [
+				"pnpm check passes after changes",
+				"Store exposes changed-file rows, active selection, loading state, and error state",
+				"Selection remains valid after refresh when the file still exists and resets safely when it does not"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["backend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/lib/stores/diff.svelte.ts"]
+			}
+		},
+		{
+			"id": "ui-1",
+			"category": "ui",
+			"description": "Add a dedicated repo-shell changes route that renders the production changed-files list with trustworthy empty/loading/error states.",
+			"steps": [
+				"pnpm check passes after changes",
+				"Users can enter the changes workspace from the repo shell",
+				"File rows show accurate status chips for mixed staged/unstaged states",
+				"Empty, loading, and error states are visually distinct and understandable"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/routes/repo/+layout.svelte",
+					"src/routes/repo/+page.svelte",
+					"src/routes/repo/changes/+page.svelte"
+				]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Leave the route, row contract, and selection semantics ready for bd-20d.2 to add hunk-level actions without reshaping the workspace.",
+			"steps": [
+				"pnpm check passes after changes",
+				"The workspace exposes one stable selected-file contract that downstream staging features can consume",
+				"bd-20d.2 can attach hunk actions without changing route identity or row semantics"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["ui-1"],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/stores/diff.svelte.ts",
+					"src/routes/repo/changes/+page.svelte"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Tauri commands: src-tauri/src/commands.rs (IPC handlers)",
+			"Git operations: src-tauri/src/git/repository.rs (git2 wrappers)",
+			"Frontend stores: src/lib/stores/ (Svelte 5 runes pattern)",
+			"Repo routes: src/routes/repo/ (SvelteKit file-based routing)"
+		],
+		"keyFiles": [
+			"src-tauri/src/git/repository.rs",
+			"src-tauri/src/commands.rs",
+			"src/lib/stores/diff.svelte.ts",
+			"src/routes/repo/+page.svelte",
+			"src/lib/components/DiffViewer.svelte"
+		],
+		"nonGoals": [
+			"Hunk-level stage or unstage actions (bd-20d.2)",
+			"Line-level staging or patch application (bd-20d.3)",
+			"Conflict resolution workflows",
+			"Commit authoring, branch actions, or command palette integration"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-20d"],
+		"parallel": true,
+		"conflicts_with": [],
+		"blocks": ["bd-20d.2"],
+		"estimated_hours": 6
+	}
+}

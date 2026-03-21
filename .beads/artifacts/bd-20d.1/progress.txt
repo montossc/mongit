@@ -1,0 +1,12 @@
+# Progress Log
+
+Bead: bd-20d.1
+Started: 2026-03-20
+
+## Codebase Patterns
+
+<!-- Consolidate reusable patterns here -->
+
+---
+
+<!-- Task logs below - APPEND ONLY -->

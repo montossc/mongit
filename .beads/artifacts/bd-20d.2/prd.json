@@ -1,0 +1,125 @@
+{
+	"beadId": "bd-20d.2",
+	"prdName": "hunk-level-stage-unstage",
+	"tasks": [
+		{
+			"id": "backend-1",
+			"category": "backend",
+			"description": "Add production backend commands that can stage or unstage one text hunk at a time using the resolved git CLI and structured error handling.",
+			"steps": [
+				"`cargo check` passes",
+				"`cargo test` passes",
+				"Backend tests cover stage hunk, unstage hunk, multi-hunk isolation, stale patch failure, and unsupported/binary-safe failure",
+				"Invalid repo/file paths return structured errors, not panics"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": [],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src-tauri/src/git/cli.rs",
+					"src-tauri/src/git/error.rs",
+					"src-tauri/src/git/repository.rs",
+					"src-tauri/src/git/mod.rs",
+					"src-tauri/src/commands.rs",
+					"src-tauri/src/lib.rs"
+				]
+			}
+		},
+		{
+			"id": "frontend-1",
+			"category": "frontend",
+			"description": "Extend the frontend state layer so the selected file can expose actionable hunks and refresh both diff + changed-file metadata after mutations.",
+			"steps": [
+				"`pnpm check` passes",
+				"Selected-file diff state exposes the hunks needed for rendering and action targeting",
+				"Successful hunk actions refresh both diff and file-row metadata consistently",
+				"Selection remains valid after refresh when the file still exists"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["backend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/stores/diff.svelte.ts",
+					"src/lib/stores/changes.svelte.ts"
+				]
+			}
+		},
+		{
+			"id": "ui-1",
+			"category": "ui",
+			"description": "Extend /repo/changes so users can inspect the selected file's hunks and stage or unstage each hunk from the existing workspace.",
+			"steps": [
+				"`pnpm check` passes",
+				"`pnpm build` passes",
+				"Manual app check shows actionable hunk controls on /repo/changes",
+				"Pending, success, empty, and error states are visually distinct and understandable",
+				"Hunk actions are keyboard reachable and preserve focus predictably after refresh"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["frontend-1"],
+				"parallel": false,
+				"conflicts_with": [],
+				"files": ["src/routes/repo/changes/+page.svelte"]
+			}
+		},
+		{
+			"id": "integration-1",
+			"category": "integration",
+			"description": "Leave the selected-file, hunk identity, and route contracts stable so bd-20d.3 can add line-level selection without reshaping this workspace.",
+			"steps": [
+				"`pnpm check` passes",
+				"`cargo check` passes",
+				"The workspace exposes one stable selected-file + hunk contract for downstream line-level targeting",
+				"bd-20d.3 can attach line-level selection without replacing /repo/changes or redefining hunk semantics"
+			],
+			"passes": false,
+			"metadata": {
+				"depends_on": ["ui-1"],
+				"parallel": true,
+				"conflicts_with": [],
+				"files": [
+					"src/lib/stores/diff.svelte.ts",
+					"src/routes/repo/changes/+page.svelte",
+					"src-tauri/src/git/repository.rs"
+				]
+			}
+		}
+	],
+	"context": {
+		"patterns": [
+			"Tauri IPC commands: src-tauri/src/commands.rs with spawn_blocking wrappers",
+			"Git CLI writes: src-tauri/src/git/cli.rs via resolved git binary",
+			"Structured errors: src-tauri/src/git/error.rs with #[serde(tag = \"kind\")]",
+			"Request-guard stores: src/lib/stores/diff.svelte.ts and changes.svelte.ts",
+			"Route: src/routes/repo/changes/+page.svelte"
+		],
+		"keyFiles": [
+			"src-tauri/src/git/repository.rs",
+			"src-tauri/src/git/cli.rs",
+			"src-tauri/src/git/error.rs",
+			"src-tauri/src/commands.rs",
+			"src/lib/stores/diff.svelte.ts",
+			"src/lib/stores/changes.svelte.ts",
+			"src/routes/repo/changes/+page.svelte"
+		],
+		"nonGoals": [
+			"Line-level staging (bd-20d.3)",
+			"Binary-file partial staging",
+			"Commit authoring, amend, push, or branch operations",
+			"Conflict resolution or 3-way patch UX",
+			"Multi-file batch staging"
+		]
+	},
+	"beadMetadata": {
+		"depends_on": ["bd-20d.1"],
+		"parallel": false,
+		"conflicts_with": [],
+		"blocks": ["bd-20d.3"],
+		"estimated_hours": 8
+	}
+}
