@@ -35,6 +35,7 @@ export interface FileContentPair {
 
 function createDiffStore() {
 	let files = $state<DiffFileEntry[]>([]);
+	let stagedFiles = $state<DiffFileEntry[]>([]);
 	let selectedPath = $state<string | null>(null);
 	let content = $state<FileContentPair | null>(null);
 	let loading = $state(false);
@@ -44,7 +45,11 @@ function createDiffStore() {
 	let diffRequestId = 0; // Guard against stale repo-level diff responses
 	let contentRequestId = 0; // Guard against out-of-order async responses
 
-	/** Fetch the list of changed files for a repository. */
+	// Staging mutation state
+	let staging = $state(false);
+	let stagingError = $state<string | null>(null);
+
+	/** Fetch both unstaged and staged diffs for a repository. */
 	async function fetchDiff(path: string): Promise<boolean> {
 		diffRequestId += 1;
 		const thisRequest = diffRequestId;
@@ -53,18 +58,34 @@ function createDiffStore() {
 		repoPath = path;
 
 		try {
-			const nextFiles = await invoke<DiffFileEntry[]>("get_diff_workdir", { path });
+			const [nextFiles, nextStaged] = await Promise.all([
+				invoke<DiffFileEntry[]>("get_diff_workdir", { path }),
+				invoke<DiffFileEntry[]>("get_diff_index", { path }),
+			]);
 			if (thisRequest !== diffRequestId || repoPath !== path) {
 				return false;
 			}
 
 			files = nextFiles;
+			stagedFiles = nextStaged;
 
-			if (files.length > 0) {
-				const stillValid =
-					selectedPath && files.some((f) => f.path === selectedPath);
+			// Validate selection against both unstaged and staged files
+			const allPaths = new Set([
+				...nextFiles.map((f) => f.path),
+				...nextStaged.map((f) => f.path),
+			]);
+
+			if (allPaths.size > 0) {
+				const stillValid = selectedPath && allPaths.has(selectedPath);
 				if (!stillValid) {
-					await selectFile(files[0].path);
+					const firstPath =
+						nextFiles[0]?.path ?? nextStaged[0]?.path ?? null;
+					if (firstPath) {
+						await selectFile(firstPath);
+					} else {
+						selectedPath = null;
+						content = null;
+					}
 				} else {
 					await fetchContent(selectedPath!);
 				}
@@ -78,6 +99,7 @@ function createDiffStore() {
 			if (thisRequest === diffRequestId && repoPath === path) {
 				error = String(e);
 				files = [];
+				stagedFiles = [];
 				selectedPath = null;
 				content = null;
 			}
@@ -102,10 +124,13 @@ function createDiffStore() {
 		const thisRequest = contentRequestId;
 		loadingContent = true;
 		try {
-			const result = await invoke<FileContentPair>("get_file_content_for_diff", {
-				path: repoPath,
-				filePath,
-			});
+			const result = await invoke<FileContentPair>(
+				"get_file_content_for_diff",
+				{
+					path: repoPath,
+					filePath,
+				},
+			);
 			// Only apply if this is still the latest request
 			if (thisRequest === contentRequestId) {
 				content = result;
@@ -122,14 +147,63 @@ function createDiffStore() {
 		}
 	}
 
+	/** Stage a single hunk. Returns true on success. */
+	async function stageHunk(
+		filePath: string,
+		hunkIndex: number,
+	): Promise<boolean> {
+		if (staging || !repoPath) return false;
+		staging = true;
+		stagingError = null;
+		try {
+			await invoke("stage_hunk", {
+				path: repoPath,
+				filePath,
+				hunkIndex,
+			});
+			return true;
+		} catch (e) {
+			stagingError = String(e);
+			return false;
+		} finally {
+			staging = false;
+		}
+	}
+
+	/** Unstage a single hunk. Returns true on success. */
+	async function unstageHunk(
+		filePath: string,
+		hunkIndex: number,
+	): Promise<boolean> {
+		if (staging || !repoPath) return false;
+		staging = true;
+		stagingError = null;
+		try {
+			await invoke("unstage_hunk", {
+				path: repoPath,
+				filePath,
+				hunkIndex,
+			});
+			return true;
+		} catch (e) {
+			stagingError = String(e);
+			return false;
+		} finally {
+			staging = false;
+		}
+	}
+
 	/** Reset store to initial state. */
 	function reset(): void {
 		files = [];
+		stagedFiles = [];
 		selectedPath = null;
 		content = null;
 		loading = false;
 		loadingContent = false;
 		error = null;
+		staging = false;
+		stagingError = null;
 		repoPath = "";
 	}
 
@@ -143,8 +217,23 @@ function createDiffStore() {
 		get files() {
 			return files;
 		},
+		get stagedFiles() {
+			return stagedFiles;
+		},
 		get selectedPath() {
 			return selectedPath;
+		},
+		/** Unstaged hunks for the selected file. */
+		get selectedFileUnstagedHunks(): DiffHunkInfo[] {
+			if (!selectedPath) return [];
+			return files.find((f) => f.path === selectedPath)?.hunks ?? [];
+		},
+		/** Staged hunks for the selected file. */
+		get selectedFileStagedHunks(): DiffHunkInfo[] {
+			if (!selectedPath) return [];
+			return (
+				stagedFiles.find((f) => f.path === selectedPath)?.hunks ?? []
+			);
 		},
 		get content() {
 			return content;
@@ -158,11 +247,19 @@ function createDiffStore() {
 		get error() {
 			return error;
 		},
+		get staging() {
+			return staging;
+		},
+		get stagingError() {
+			return stagingError;
+		},
 		get repoPath() {
 			return repoPath;
 		},
 		fetchDiff,
 		selectFile,
+		stageHunk,
+		unstageHunk,
 		refresh,
 		reset,
 	};
