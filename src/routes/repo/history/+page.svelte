@@ -32,7 +32,7 @@
 		try {
 			const { invoke } = await import('@tauri-apps/api/core');
 			const [commits, refs] = await Promise.all([
-				invoke<CommitData[]>('get_commit_log', { path: repoPath, max_count: 10000 }),
+				invoke<CommitData[]>('get_commit_log', { path: repoPath, maxCount: 10000 }),
 				invoke<RefData[]>('get_refs', { path: repoPath })
 			]);
 
