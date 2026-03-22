@@ -6,6 +6,7 @@
 	import { commandRegistry } from '$lib/commands/registry.svelte';
 	import { CATEGORY_LABELS, type CommandContext, type Command } from '$lib/commands/types';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { setPaletteCallbacks } from '$lib/commands/shortcuts';
 
 	let isOpen = $state(false);
 	let query = $state('');
@@ -82,6 +83,10 @@
 		previouslyFocused = null;
 	}
 
+	function toggle() {
+		if (isOpen) close(); else open();
+	}
+
 	// ── Execution (with error feedback) ──────────────────────────────────
 
 	async function executeItem(cmd: Command) {
@@ -101,19 +106,7 @@
 	// ── Keyboard handling ────────────────────────────────────────────────
 
 	function handleGlobalKeydown(e: KeyboardEvent) {
-		// CMD+K to open palette (macOS)
-		if (e.key === 'k' && e.metaKey && !e.shiftKey && !e.altKey) {
-			const target = e.target as HTMLElement;
-			if (target.closest('.cm-editor')) return;
-			e.preventDefault();
-			if (isOpen) {
-				close();
-			} else {
-				open();
-			}
-		}
-
-		// Escape to close
+		// Escape to close (CMD+K is handled by the shortcut manager)
 		if (e.key === 'Escape' && isOpen) {
 			e.preventDefault();
 			close();
@@ -163,6 +156,7 @@
 
 	onMount(() => {
 		window.addEventListener('keydown', handleGlobalKeydown);
+		setPaletteCallbacks(() => isOpen, toggle);
 	});
 
 	onDestroy(() => {
