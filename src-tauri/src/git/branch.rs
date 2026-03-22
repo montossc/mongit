@@ -6,6 +6,7 @@
 use std::path::Path;
 
 use git2::BranchType;
+use serde::Serialize;
 
 use super::cli::GitCli;
 use super::error::{parse_branch_stderr, BranchOpError, GitError};
@@ -181,6 +182,63 @@ fn current_branch_name(path: &Path) -> Result<String, GitError> {
         })?
         .to_string();
     Ok(name)
+}
+
+/// Response type for ahead/behind tracking information.
+#[derive(Debug, Serialize)]
+pub struct AheadBehind {
+    pub ahead: u32,
+    pub behind: u32,
+    pub upstream: Option<String>,
+}
+
+/// Get ahead/behind counts relative to the upstream tracking branch.
+///
+/// Uses `git rev-list --left-right --count HEAD...@{upstream}`.
+/// Returns `{ ahead: 0, behind: 0, upstream: None }` when no upstream is configured
+/// (this is not an error — it's a valid state for new branches).
+pub async fn ahead_behind(path: &Path, git_executable: &Path) -> Result<AheadBehind, GitError> {
+    let cli = GitCli::new(path, git_executable);
+
+    // First, try to get the upstream branch name
+    let upstream_result = cli
+        .run_git_async(&["rev-parse", "--abbrev-ref", "@{upstream}"])
+        .await;
+
+    let upstream_name = match upstream_result {
+        Ok(name) => Some(name.trim().to_string()),
+        Err(_) => {
+            // No upstream configured — return zeros, not an error
+            return Ok(AheadBehind {
+                ahead: 0,
+                behind: 0,
+                upstream: None,
+            });
+        }
+    };
+
+    // Get the ahead/behind counts
+    let output = cli
+        .run_git_async(&["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+        .await
+        .map_err(map_cli_error)?;
+
+    // Output format: "ahead\tbehind\n"
+    let parts: Vec<&str> = output.trim().split('\t').collect();
+    let ahead = parts
+        .first()
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(0);
+    let behind = parts
+        .get(1)
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(0);
+
+    Ok(AheadBehind {
+        ahead,
+        behind,
+        upstream: upstream_name,
+    })
 }
 
 #[cfg(test)]

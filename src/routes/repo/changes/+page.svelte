@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { repoStore } from '$lib/stores/repo.svelte';
 	import { changesStore, type FileChangeKind } from '$lib/stores/changes.svelte';
+	import { conflictStore } from '$lib/stores/conflict.svelte';
 	import { diffStore, type DiffHunkInfo } from '$lib/stores/diff.svelte';
+	import { commitStore } from '$lib/stores/commit.svelte';
 	import { listen } from '@tauri-apps/api/event';
 
 	let unlisten: (() => void) | null = null;
@@ -13,6 +16,7 @@
 		if (repoStore.activeRepoPath) {
 			changesStore.loadFiles(repoStore.activeRepoPath);
 			diffStore.fetchDiff(repoStore.activeRepoPath);
+			commitStore.loadAuthor(repoStore.activeRepoPath);
 		}
 
 		// Listen for file system changes and refresh
@@ -97,6 +101,7 @@
 			case 'Deleted': return 'D';
 			case 'Renamed': return 'R';
 			case 'Typechange': return 'T';
+			case 'Conflicted': return 'C';
 		}
 	}
 
@@ -108,6 +113,7 @@
 			case 'Deleted': return 'deleted';
 			case 'Renamed': return 'renamed';
 			case 'Typechange': return 'typechange';
+			case 'Conflicted': return 'conflicted';
 		}
 	}
 
@@ -141,9 +147,41 @@
 	const hasUnstagedHunks = $derived(diffStore.selectedFileUnstagedHunks.length > 0);
 	const hasStagedHunks = $derived(diffStore.selectedFileStagedHunks.length > 0);
 	const hasAnyHunks = $derived(hasUnstagedHunks || hasStagedHunks);
+
+	/** Count of staged files for commit button label. */
+	const stagedFileCount = $derived(
+		changesStore.files.filter((f) => f.staged !== null).length
+	);
+
+	/** Handle commit action. */
+	async function handleCommit() {
+		if (!repoStore.activeRepoPath) return;
+		const success = await commitStore.commit(repoStore.activeRepoPath);
+		if (success) {
+			await Promise.all([changesStore.refresh(), diffStore.refresh()]);
+		}
+	}
+
+	/** Handle Cmd+Enter in textarea. */
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+			event.preventDefault();
+			handleCommit();
+		}
+	}
 </script>
 
 <div class="changes-workspace">
+	{#if conflictStore.isMerging}
+		<div class="conflict-banner">
+			<span class="conflict-banner-icon">!</span>
+			<span class="conflict-banner-text">
+				Merge in progress — {conflictStore.conflictCount} conflicted file{conflictStore.conflictCount !== 1 ? 's' : ''}
+			</span>
+			<button class="conflict-banner-btn" onclick={() => goto('/repo/resolve')}>Resolve Conflicts</button>
+		</div>
+	{/if}
+
 	{#if changesStore.loading && changesStore.files.length === 0}
 		<!-- Loading state (only when no cached files) -->
 		<div class="state-message">
@@ -355,6 +393,62 @@
 				{/if}
 			</div>
 		</div>
+
+		<!-- Commit form (below split layout) -->
+		{#if stagedFileCount > 0 || commitStore.amend}
+			<div class="commit-form">
+				{#if commitStore.error}
+					<div class="commit-error">
+						<p>{commitStore.error}</p>
+					</div>
+				{/if}
+
+				<textarea
+					class="commit-message"
+					placeholder="Commit message"
+					value={commitStore.message}
+					oninput={(e) => commitStore.setMessage(e.currentTarget.value)}
+					onkeydown={handleKeydown}
+					disabled={commitStore.committing}
+					rows="3"
+				></textarea>
+
+				<div class="commit-actions">
+					<div class="commit-meta">
+						<label class="amend-toggle">
+							<input
+								type="checkbox"
+								checked={commitStore.amend}
+								onchange={() => repoStore.activeRepoPath && commitStore.toggleAmend(repoStore.activeRepoPath)}
+								disabled={commitStore.committing}
+							/>
+							Amend
+						</label>
+						{#if commitStore.author}
+							<span class="author-info" title="{commitStore.author.name} <{commitStore.author.email}>">
+								{commitStore.author.name}
+							</span>
+						{/if}
+					</div>
+
+					<button
+						class="commit-btn"
+						onclick={handleCommit}
+						disabled={commitStore.committing || commitStore.message.trim() === ''}
+						title="Commit staged changes (Cmd+Enter)"
+					>
+						{#if commitStore.committing}
+							<span class="btn-spinner"></span>
+							Committing…
+						{:else if commitStore.amend}
+							Amend Commit
+						{:else}
+							Commit ({stagedFileCount} file{stagedFileCount !== 1 ? 's' : ''})
+						{/if}
+					</button>
+				</div>
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -545,6 +639,7 @@
 	.status-badge.staged.deleted   { background: var(--color-danger); color: white; }
 	.status-badge.staged.renamed   { background: var(--color-warning); color: white; }
 	.status-badge.staged.typechange { background: var(--color-text-muted); color: white; }
+	.status-badge.staged.conflicted { background: var(--color-danger); color: white; }
 
 	/* Unstaged badges: outline style */
 	.status-badge.unstaged.added     { border: 1px solid var(--color-success); color: var(--color-success); }
@@ -552,6 +647,7 @@
 	.status-badge.unstaged.deleted   { border: 1px solid var(--color-danger); color: var(--color-danger); }
 	.status-badge.unstaged.renamed   { border: 1px solid var(--color-warning); color: var(--color-warning); }
 	.status-badge.unstaged.typechange { border: 1px solid var(--color-text-muted); color: var(--color-text-muted); }
+	.status-badge.unstaged.conflicted { border: 1px solid var(--color-danger); color: var(--color-danger); }
 
 	/* ── Hunk panel ────────────────────────────────────────────────── */
 
@@ -734,5 +830,178 @@
 	.diff-line.line-selected.line-del {
 		background: color-mix(in srgb, var(--color-danger) 30%, transparent);
 		box-shadow: inset 3px 0 0 var(--color-danger);
+	}
+
+	/* ── Conflict banner ────────────────────────────────────────────── */
+
+	.conflict-banner {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-5);
+		background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+		border-bottom: 1px solid var(--color-danger);
+		flex-shrink: 0;
+	}
+
+	.conflict-banner-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		background: var(--color-danger);
+		color: white;
+		border-radius: 50%;
+		font-weight: 700;
+		font-size: 12px;
+		flex-shrink: 0;
+	}
+
+	.conflict-banner-text {
+		flex: 1;
+		font-size: var(--text-body-sm-size);
+		color: var(--color-text-primary);
+		font-weight: 500;
+	}
+
+	.conflict-banner-btn {
+		padding: var(--space-1) var(--space-4);
+		font-size: var(--text-body-sm-size);
+		font-weight: 500;
+		background: var(--color-danger);
+		color: white;
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: opacity var(--transition-fast);
+		flex-shrink: 0;
+	}
+
+	.conflict-banner-btn:hover {
+		opacity: 0.85;
+	}
+	/* ── Commit form ──────────────────────────────────────────────────────── */
+
+	.commit-form {
+		border-top: 1px solid var(--color-border);
+		padding: var(--space-3) var(--space-4);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		flex-shrink: 0;
+	}
+
+	.commit-error {
+		padding: var(--space-2) var(--space-3);
+		background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+		border: 1px solid var(--color-danger);
+		border-radius: var(--radius-sm);
+		color: var(--color-danger);
+		font-size: var(--text-body-sm-size);
+		word-break: break-word;
+	}
+
+	.commit-error p {
+		margin: 0;
+	}
+
+	.commit-message {
+		width: 100%;
+		min-height: 60px;
+		max-height: 120px;
+		padding: var(--space-2) var(--space-3);
+		font-family: var(--font-mono);
+		font-size: var(--text-mono-sm-size);
+		line-height: 1.5;
+		color: var(--color-text-primary);
+		background: var(--color-bg-primary);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		resize: vertical;
+		outline: none;
+		transition: border-color var(--transition-fast);
+	}
+
+	.commit-message:focus {
+		border-color: var(--color-accent);
+	}
+
+	.commit-message:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.commit-message::placeholder {
+		color: var(--color-text-muted);
+	}
+
+	.commit-actions {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
+
+	.commit-meta {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		font-size: var(--text-body-sm-size);
+		color: var(--color-text-secondary);
+	}
+
+	.amend-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		cursor: pointer;
+		font-size: var(--text-body-sm-size);
+		color: var(--color-text-secondary);
+		user-select: none;
+	}
+
+	.amend-toggle input {
+		margin: 0;
+		cursor: pointer;
+	}
+
+	.author-info {
+		color: var(--color-text-muted);
+		font-size: var(--text-body-sm-size);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 200px;
+	}
+
+	.commit-btn {
+		flex-shrink: 0;
+		padding: var(--space-2) var(--space-4);
+		font-size: var(--text-body-sm-size);
+		font-weight: 600;
+		color: white;
+		background: var(--color-accent);
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: background var(--transition-fast), opacity var(--transition-fast);
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.commit-btn:hover:not(:disabled) {
+		filter: brightness(1.1);
+	}
+
+	.commit-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.commit-btn:focus-visible {
+		outline: var(--focus-ring-width) solid var(--focus-ring-color);
+		outline-offset: 1px;
 	}
 </style>

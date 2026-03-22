@@ -7,7 +7,8 @@ export type FileChangeKind =
 	| "Modified"
 	| "Deleted"
 	| "Renamed"
-	| "Typechange";
+	| "Typechange"
+	| "Conflicted";
 
 export interface ChangedFileEntry {
 	path: string;

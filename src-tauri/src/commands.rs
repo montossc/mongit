@@ -3,9 +3,13 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use crate::git::branch;
+use crate::git::commit;
+use crate::git::conflict;
+use crate::git::conflict::{MergeState, ConflictContent};
 use crate::git::staging;
 use crate::git::{Git2Repository, GitRepository};
 use crate::git::repository::{ChangedFileEntry, CommitInfo, DiffFileEntry, FileContentPair, RefInfo};
+use crate::git::commit::{AuthorInfo, CommitResult};
 use crate::git::resolver::GitResolver;
 use crate::recents::{self, RecentRepo};
 
@@ -189,6 +193,14 @@ pub async fn push(path: String, force_with_lease: bool) -> Result<String, String
         .map_err(String::from)
 }
 
+/// Get ahead/behind commit counts relative to upstream tracking branch.
+#[tauri::command]
+pub async fn get_ahead_behind(path: String) -> Result<branch::AheadBehind, String> {
+    let git = resolve_git()?;
+    let path = PathBuf::from(path);
+    branch::ahead_behind(&path, &git).await.map_err(String::from)
+}
+
 // ── Staging operation commands ─────────────────────────────────────────────────
 
 /// Stage a single hunk from the working tree into the index.
@@ -265,6 +277,115 @@ pub async fn get_diff_index(path: String) -> Result<Vec<DiffFileEntry>, String> 
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+// ── Conflict operation commands ──────────────────────────────────────────────────
+
+/// Get the merge state of a repository (is merging, conflicted files).
+#[tauri::command]
+pub async fn get_merge_state(path: String) -> Result<MergeState, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::get_merge_state(&path).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get the base/ours/theirs content for a conflicted file.
+#[tauri::command]
+pub async fn get_conflict_content(
+    path: String,
+    file_path: String,
+) -> Result<ConflictContent, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::get_conflict_content(&path, &file_path).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Resolve a conflicted file: write resolved content and stage in the index.
+#[tauri::command]
+pub async fn resolve_conflict(
+    path: String,
+    file_path: String,
+    content: String,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::resolve_conflict(&path, &file_path, &content).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Abort the current merge: clean merge state and reset to HEAD.
+#[tauri::command]
+pub async fn abort_merge(path: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::abort_merge(&path).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Complete the merge by creating a merge commit.
+/// Returns the new commit SHA.
+#[tauri::command]
+pub async fn complete_merge(path: String, message: Option<String>) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::complete_merge(&path, message.as_deref()).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+// ── Commit operation commands ──────────────────────────────────────────────────
+
+/// Create a commit from staged changes.
+///
+/// If `amend` is true, amends the most recent commit.
+/// Returns the SHA and summary of the created commit.
+#[tauri::command]
+pub async fn commit_changes(
+    path: String,
+    message: String,
+    amend: bool,
+) -> Result<CommitResult, String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        commit::commit_changes(&path, &git, &message, amend).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get the commit message of HEAD (for amend pre-fill).
+#[tauri::command]
+pub async fn get_head_message(path: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        commit::get_head_message(&path, &git).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get the configured author identity (name + email) from git config.
+#[tauri::command]
+pub async fn get_commit_defaults(path: String) -> Result<AuthorInfo, String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        commit::get_author_config(&path, &git).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
 #[tauri::command]
 pub async fn open_repo(app: tauri::AppHandle, path: String) -> Result<RecentRepo, String> {
     tokio::task::spawn_blocking(move || {

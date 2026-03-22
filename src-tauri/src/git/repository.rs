@@ -31,6 +31,7 @@ pub enum FileChangeKind {
     Deleted,
     Renamed,
     Typechange,
+    Conflicted,
 }
 
 /// A changed file with separate staged and unstaged status.
@@ -245,6 +246,16 @@ impl GitRepository for Git2Repository {
         for entry in statuses.iter() {
             let path = entry.path().unwrap_or("").to_string();
             let bits = entry.status();
+
+            // Check for conflicts first — conflicted files get special treatment
+            if bits.intersects(git2::Status::CONFLICTED) {
+                entries.push(ChangedFileEntry {
+                    path,
+                    staged: Some(FileChangeKind::Conflicted),
+                    unstaged: Some(FileChangeKind::Conflicted),
+                });
+                continue;
+            }
 
             let staged = if bits.intersects(git2::Status::INDEX_RENAMED) {
                 Some(FileChangeKind::Renamed)
