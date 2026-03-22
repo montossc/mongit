@@ -79,4 +79,14 @@ function setTheme(mode: ThemeMode): void {
 }
 
 export type { ResolvedTheme, ThemeMode };
-export { resolvedTheme, setTheme, theme };
+export { setTheme };
+
+/** Get the current theme mode. */
+export function getTheme(): ThemeMode {
+	return theme;
+}
+
+/** Get the current resolved theme (light or dark). */
+export function getResolvedTheme(): ResolvedTheme {
+	return resolvedTheme;
+}

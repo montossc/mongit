@@ -9,7 +9,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { goto } from "$app/navigation";
 import { repoStore } from "$lib/stores/repo.svelte";
-import { setTheme, theme } from "$lib/stores/theme.svelte";
+import { setTheme, getTheme } from "$lib/stores/theme.svelte";
 import { changesStore } from "$lib/stores/changes.svelte";
 import { commandRegistry } from "./registry.svelte";
 import type { Command, CommandContext } from "./types";
@@ -145,7 +145,7 @@ const builtinCommands: Command[] = [
 		category: "view",
 		enabled: always,
 		execute: () => {
-			const current = theme;
+			const current = getTheme();
 			if (current === "dark") {
 				setTheme("light");
 			} else {
