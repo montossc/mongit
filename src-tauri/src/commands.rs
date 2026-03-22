@@ -191,6 +191,14 @@ pub async fn push(path: String, force_with_lease: bool) -> Result<String, String
         .map_err(String::from)
 }
 
+/// Get ahead/behind commit counts relative to upstream tracking branch.
+#[tauri::command]
+pub async fn get_ahead_behind(path: String) -> Result<branch::AheadBehind, String> {
+    let git = resolve_git()?;
+    let path = PathBuf::from(path);
+    branch::ahead_behind(&path, &git).await.map_err(String::from)
+}
+
 // ── Staging operation commands ─────────────────────────────────────────────────
 
 /// Stage a single hunk from the working tree into the index.
