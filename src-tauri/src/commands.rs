@@ -3,9 +3,11 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use crate::git::branch;
+use crate::git::commit;
 use crate::git::staging;
 use crate::git::{Git2Repository, GitRepository};
 use crate::git::repository::{ChangedFileEntry, CommitInfo, DiffFileEntry, FileContentPair, RefInfo};
+use crate::git::commit::{AuthorInfo, CommitResult};
 use crate::git::resolver::GitResolver;
 use crate::recents::{self, RecentRepo};
 
@@ -260,6 +262,51 @@ pub async fn get_diff_index(path: String) -> Result<Vec<DiffFileEntry>, String> 
     tokio::task::spawn_blocking(move || {
         let repo = Git2Repository::open(&path);
         repo.diff_index().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+// ── Commit operation commands ──────────────────────────────────────────────────
+
+/// Create a commit from staged changes.
+///
+/// If `amend` is true, amends the most recent commit.
+/// Returns the SHA and summary of the created commit.
+#[tauri::command]
+pub async fn commit_changes(
+    path: String,
+    message: String,
+    amend: bool,
+) -> Result<CommitResult, String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        commit::commit_changes(&path, &git, &message, amend).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get the commit message of HEAD (for amend pre-fill).
+#[tauri::command]
+pub async fn get_head_message(path: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        commit::get_head_message(&path, &git).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get the configured author identity (name + email) from git config.
+#[tauri::command]
+pub async fn get_commit_defaults(path: String) -> Result<AuthorInfo, String> {
+    tokio::task::spawn_blocking(move || {
+        let git = resolve_git()?;
+        let path = PathBuf::from(path);
+        commit::get_author_config(&path, &git).map_err(String::from)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

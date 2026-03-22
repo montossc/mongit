@@ -33,6 +33,9 @@ pub fn run() {
             commands::stage_lines,
             commands::unstage_lines,
             commands::get_diff_index,
+            commands::commit_changes,
+            commands::get_head_message,
+            commands::get_commit_defaults,
             watcher::watch_repo,
             watcher::stop_watching,
         ])

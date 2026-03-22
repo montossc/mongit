@@ -43,6 +43,10 @@ pub enum GitError {
     #[error("{0}")]
     StageOp(#[from] StageOpError),
 
+    /// Commit operation error (structured, serializable for frontend)
+    #[error("{0}")]
+    CommitOp(#[from] CommitError),
+
     /// Filesystem I/O error
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
@@ -59,6 +63,9 @@ impl From<GitError> for String {
             }
             GitError::StageOp(stage_err) => {
                 serde_json::to_string(stage_err).unwrap_or_else(|_| err.to_string())
+            }
+            GitError::CommitOp(commit_err) => {
+                serde_json::to_string(commit_err).unwrap_or_else(|_| err.to_string())
             }
             _ => err.to_string(),
         }
@@ -165,6 +172,40 @@ pub enum StageOpError {
     InvalidLineSelection { reason: String, message: String },
 }
 
+// ── Commit Operation Errors ─────────────────────────────────────────────
+
+/// Structured error for commit operations.
+///
+/// Serializes as a discriminated union for typed frontend consumption:
+/// `{ "kind": "NothingStaged", "message": "..." }`
+///
+/// Raw stderr is always preserved in the `message` field for debugging.
+#[derive(Debug, Clone, Serialize, thiserror::Error)]
+#[serde(tag = "kind")]
+pub enum CommitError {
+    #[error("nothing to commit: no changes staged")]
+    NothingStaged { message: String },
+
+    #[error("commit message is empty")]
+    EmptyMessage { message: String },
+
+    #[error("pre-commit hook failed")]
+    HookFailed { hook: String, message: String },
+
+    #[error("merge in progress — resolve conflicts first")]
+    MergeInProgress { message: String },
+
+    #[error("cannot amend: no commits yet")]
+    AmendNoCommits { message: String },
+
+    #[error("commit operation failed: {stderr}")]
+    GenericCommitFailed {
+        cmd: String,
+        stderr: String,
+        exit_code: Option<i32>,
+    },
+}
+
 /// Parse git CLI stderr into a typed `StageOpError`.
 ///
 /// Matches the most common `git apply` error patterns.
@@ -195,6 +236,78 @@ pub fn parse_stage_stderr(cmd: &str, stderr: &str, exit_code: Option<i32>) -> St
     }
 
     StageOpError::GenericStageFailed {
+        cmd: cmd.to_string(),
+        stderr: stderr.to_string(),
+        exit_code,
+    }
+}
+
+/// Parse git CLI stderr into a typed `CommitError`.
+///
+/// Matches the most common `git commit` error patterns.
+/// Falls back to `GenericCommitFailed` for unrecognized stderr output.
+pub fn parse_commit_stderr(cmd: &str, stderr: &str, exit_code: Option<i32>) -> CommitError {
+    let lower = stderr.to_lowercase();
+
+    // Nothing to commit (clean working tree or nothing staged)
+    if lower.contains("nothing to commit")
+        || lower.contains("nothing added to commit")
+        || lower.contains("no changes added to commit")
+    {
+        return CommitError::NothingStaged {
+            message: stderr.to_string(),
+        };
+    }
+
+    // Empty commit message
+    if lower.contains("empty commit message")
+        || lower.contains("aborting commit due to empty commit message")
+    {
+        return CommitError::EmptyMessage {
+            message: stderr.to_string(),
+        };
+    }
+
+    // Hook failures (pre-commit, commit-msg, etc.)
+    if lower.contains("hook")
+        && (lower.contains("failed") || lower.contains("rejected") || lower.contains("abort"))
+    {
+        let hook = if lower.contains("pre-commit") {
+            "pre-commit"
+        } else if lower.contains("commit-msg") {
+            "commit-msg"
+        } else if lower.contains("pre-merge-commit") {
+            "pre-merge-commit"
+        } else {
+            "unknown"
+        };
+        return CommitError::HookFailed {
+            hook: hook.to_string(),
+            message: stderr.to_string(),
+        };
+    }
+
+    // Merge in progress
+    if (lower.contains("merge") && lower.contains("in progress"))
+        || lower.contains("you have unmerged paths")
+        || (lower.contains("rebase") && lower.contains("in progress"))
+    {
+        return CommitError::MergeInProgress {
+            message: stderr.to_string(),
+        };
+    }
+
+    // Amend with no commits
+    if lower.contains("does not have a commit checked out")
+        || (lower.contains("amend") && lower.contains("initial commit"))
+    {
+        return CommitError::AmendNoCommits {
+            message: stderr.to_string(),
+        };
+    }
+
+    // Fallback
+    CommitError::GenericCommitFailed {
         cmd: cmd.to_string(),
         stderr: stderr.to_string(),
         exit_code,
@@ -540,6 +653,73 @@ mod tests {
         // Should be JSON, not Display string
         assert!(s.contains("BranchNotFound"));
         assert!(s.contains("gone"));
+    }
+
+    #[test]
+    fn test_commit_error_nothing_staged() {
+        let err = parse_commit_stderr(
+            "commit -m test",
+            "On branch main\nnothing to commit, working tree clean",
+            Some(1),
+        );
+        assert!(matches!(err, CommitError::NothingStaged { .. }));
+    }
+
+    #[test]
+    fn test_commit_error_empty_message() {
+        let err = parse_commit_stderr(
+            "commit",
+            "Aborting commit due to empty commit message.",
+            Some(1),
+        );
+        assert!(matches!(err, CommitError::EmptyMessage { .. }));
+    }
+
+    #[test]
+    fn test_commit_error_hook_failed() {
+        let err = parse_commit_stderr(
+            "commit -m test",
+            "hint: The 'pre-commit' hook was ignored because it's not set as executable.\nhook failed",
+            Some(1),
+        );
+        assert!(matches!(err, CommitError::HookFailed { ref hook, .. } if hook == "pre-commit"));
+    }
+
+    #[test]
+    fn test_commit_error_merge_in_progress() {
+        let err = parse_commit_stderr(
+            "commit -m fix",
+            "error: Committing is not possible because you have unmerged paths.",
+            Some(128),
+        );
+        assert!(matches!(err, CommitError::MergeInProgress { .. }));
+    }
+
+    #[test]
+    fn test_commit_error_generic_fallback() {
+        let err = parse_commit_stderr("commit", "some unknown error", Some(1));
+        assert!(matches!(err, CommitError::GenericCommitFailed { .. }));
+    }
+
+    #[test]
+    fn test_commit_error_serializes_as_json() {
+        let err = CommitError::NothingStaged {
+            message: "nothing to commit".to_string(),
+        };
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(json.contains("\"kind\":\"NothingStaged\""));
+    }
+
+    #[test]
+    fn test_commit_error_git_error_serializes() {
+        let commit_err = CommitError::HookFailed {
+            hook: "pre-commit".to_string(),
+            message: "hook failed".to_string(),
+        };
+        let git_err = GitError::CommitOp(commit_err);
+        let s: String = git_err.into();
+        assert!(s.contains("HookFailed"));
+        assert!(s.contains("pre-commit"));
     }
 
     #[test]
