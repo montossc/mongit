@@ -293,6 +293,44 @@ pub async fn get_conflict_content(
     .await
     .map_err(|e| format!("Task join error: {e}"))?
 }
+
+/// Resolve a conflicted file: write resolved content and stage in the index.
+#[tauri::command]
+pub async fn resolve_conflict(
+    path: String,
+    file_path: String,
+    content: String,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::resolve_conflict(&path, &file_path, &content).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Abort the current merge: clean merge state and reset to HEAD.
+#[tauri::command]
+pub async fn abort_merge(path: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::abort_merge(&path).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Complete the merge by creating a merge commit.
+/// Returns the new commit SHA.
+#[tauri::command]
+pub async fn complete_merge(path: String, message: Option<String>) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::complete_merge(&path, message.as_deref()).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
 #[tauri::command]
 pub async fn open_repo(app: tauri::AppHandle, path: String) -> Result<RecentRepo, String> {
     tokio::task::spawn_blocking(move || {

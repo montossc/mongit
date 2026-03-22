@@ -29,6 +29,8 @@ function createConflictStore() {
 	let contentLoading = $state(false);
 	let error = $state<string | null>(null);
 	let repoPath = $state("");
+	let resolvedPaths = $state<Set<string>>(new Set());
+	let resolving = $state(false);
 
 	/**
 	 * Load merge state for a repository.
@@ -104,6 +106,74 @@ function createConflictStore() {
 		await loadMergeState(repoPath);
 	}
 
+	/**
+	 * Resolve a conflict file: write content to working tree and stage in index.
+	 */
+	async function resolveFile(filePath: string, resolvedContent: string): Promise<void> {
+		if (!repoPath) return;
+		resolving = true;
+		error = null;
+
+		try {
+			await invoke("resolve_conflict", {
+				path: repoPath,
+				filePath,
+				content: resolvedContent,
+			});
+			resolvedPaths = new Set([...resolvedPaths, filePath]);
+			// Refresh merge state to update conflict list
+			await loadMergeState(repoPath);
+		} catch (e) {
+			error = String(e);
+		} finally {
+			resolving = false;
+		}
+	}
+
+	/**
+	 * Abort the current merge and reset to pre-merge state.
+	 */
+	async function abortMerge(): Promise<void> {
+		if (!repoPath) return;
+		loading = true;
+		error = null;
+
+		try {
+			await invoke("abort_merge", { path: repoPath });
+			reset();
+			// Reload to confirm merge is gone
+			await loadMergeState(repoPath);
+		} catch (e) {
+			error = String(e);
+			loading = false;
+		}
+	}
+
+	/**
+	 * Complete the merge by creating a merge commit.
+	 * Returns the new commit SHA.
+	 */
+	async function completeMerge(message?: string): Promise<string | null> {
+		if (!repoPath) return null;
+		loading = true;
+		error = null;
+
+		try {
+			const sha = await invoke<string>("complete_merge", {
+				path: repoPath,
+				message: message ?? null,
+			});
+			reset();
+			// Reload to confirm merge is done
+			await loadMergeState(repoPath);
+			return sha;
+		} catch (e) {
+			error = String(e);
+			loading = false;
+			return null;
+		}
+	}
+
 	/** Reset to initial state. */
 	function reset(): void {
 		mergeState = null;
@@ -113,6 +183,8 @@ function createConflictStore() {
 		contentLoading = false;
 		error = null;
 		repoPath = "";
+		resolvedPaths = new Set();
+		resolving = false;
 	}
 
 	return {
@@ -146,10 +218,22 @@ function createConflictStore() {
 		get repoPath() {
 			return repoPath;
 		},
+		get resolvedPaths() {
+			return resolvedPaths;
+		},
+		get resolvedCount() {
+			return resolvedPaths.size;
+		},
+		get resolving() {
+			return resolving;
+		},
 		loadMergeState,
 		loadConflictContent,
 		selectFile,
 		refresh,
+		resolveFile,
+		abortMerge,
+		completeMerge,
 		reset,
 	};
 }

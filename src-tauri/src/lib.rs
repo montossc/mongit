@@ -35,6 +35,9 @@ pub fn run() {
             commands::get_diff_index,
             commands::get_merge_state,
             commands::get_conflict_content,
+            commands::resolve_conflict,
+            commands::abort_merge,
+            commands::complete_merge,
             watcher::watch_repo,
             watcher::stop_watching,
         ])
