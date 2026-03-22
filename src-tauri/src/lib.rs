@@ -33,6 +33,8 @@ pub fn run() {
             commands::stage_lines,
             commands::unstage_lines,
             commands::get_diff_index,
+            commands::get_merge_state,
+            commands::get_conflict_content,
             watcher::watch_repo,
             watcher::stop_watching,
         ])

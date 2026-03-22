@@ -1,5 +1,6 @@
 pub mod branch;
 pub mod cli;
+pub mod conflict;
 pub mod error;
 pub mod repository;
 pub mod resolver;

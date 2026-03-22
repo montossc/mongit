@@ -309,4 +309,14 @@ mod tests {
         assert_eq!(canonical, dir.path().canonicalize().expect("canonicalize"));
     }
 
+    #[test]
+    fn test_should_emit_git_merge_head() {
+        assert!(should_emit_for_path(&PathBuf::from("/repo/.git/MERGE_HEAD")));
+    }
+
+    #[test]
+    fn test_should_emit_git_merge_msg() {
+        assert!(should_emit_for_path(&PathBuf::from("/repo/.git/MERGE_MSG")));
+    }
+
 }

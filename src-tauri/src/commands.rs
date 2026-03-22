@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use crate::git::branch;
+use crate::git::conflict;
+use crate::git::conflict::{MergeState, ConflictContent};
 use crate::git::staging;
 use crate::git::{Git2Repository, GitRepository};
 use crate::git::repository::{ChangedFileEntry, CommitInfo, DiffFileEntry, FileContentPair, RefInfo};
@@ -265,6 +267,32 @@ pub async fn get_diff_index(path: String) -> Result<Vec<DiffFileEntry>, String> 
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+// ── Conflict operation commands ──────────────────────────────────────────────────
+
+/// Get the merge state of a repository (is merging, conflicted files).
+#[tauri::command]
+pub async fn get_merge_state(path: String) -> Result<MergeState, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::get_merge_state(&path).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get the base/ours/theirs content for a conflicted file.
+#[tauri::command]
+pub async fn get_conflict_content(
+    path: String,
+    file_path: String,
+) -> Result<ConflictContent, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        conflict::get_conflict_content(&path, &file_path).map_err(String::from)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
 #[tauri::command]
 pub async fn open_repo(app: tauri::AppHandle, path: String) -> Result<RecentRepo, String> {
     tokio::task::spawn_blocking(move || {
