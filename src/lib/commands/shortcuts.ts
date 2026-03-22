@@ -72,7 +72,8 @@ function matchesBinding(e: KeyboardEvent, binding: ShortcutBinding): boolean {
 // ── Core handler ─────────────────────────────────────────────────────────
 
 function handleKeydown(e: KeyboardEvent): void {
-	const target = e.target as HTMLElement;
+	const target = e.target;
+	if (!(target instanceof HTMLElement)) return;
 
 	// Find matching binding
 	const binding = bindings.find((b) => matchesBinding(e, b));
@@ -97,7 +98,11 @@ function handleKeydown(e: KeyboardEvent): void {
 	if (!ctx) return;
 
 	e.preventDefault();
-	commandRegistry.execute(binding.commandId, ctx);
+	commandRegistry.execute(binding.commandId, ctx).catch((err: unknown) => {
+		// Import would create circular dependency; use console as fallback.
+		// Toast feedback is handled by the palette path; shortcuts log to console.
+		console.error(`[shortcut] Command "${binding.commandId}" failed:`, err);
+	});
 }
 
 // ── Public API ───────────────────────────────────────────────────────────
