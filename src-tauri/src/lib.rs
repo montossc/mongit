@@ -25,6 +25,7 @@ pub fn run() {
             commands::fetch,
             commands::pull,
             commands::push,
+            commands::get_ahead_behind,
             commands::open_repo,
             commands::get_recent_repos,
             commands::remove_recent_repo,
@@ -38,6 +39,9 @@ pub fn run() {
             commands::resolve_conflict,
             commands::abort_merge,
             commands::complete_merge,
+            commands::commit_changes,
+            commands::get_head_message,
+            commands::get_commit_defaults,
             watcher::watch_repo,
             watcher::stop_watching,
         ])
