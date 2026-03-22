@@ -100,8 +100,16 @@ export function processConfig(config: AppConfig): string {
 	let {
 		base = SAMPLE_BASE,
 		ours = SAMPLE_OURS,
-		theirs = SAMPLE_THEIRS
-	}: { base?: string; ours?: string; theirs?: string } = $props();
+		theirs = SAMPLE_THEIRS,
+		onresolve,
+		resolved = false
+	}: {
+		base?: string;
+		ours?: string;
+		theirs?: string;
+		onresolve?: (content: string) => void;
+		resolved?: boolean;
+	} = $props();
 
 	let leftPaneEl = $state<HTMLDivElement | null>(null);
 	let centerPaneEl = $state<HTMLDivElement | null>(null);
@@ -136,11 +144,19 @@ export function processConfig(config: AppConfig): string {
 	function acceptOurs(): void {
 		currentChunk = 0;
 		applyToCenter(ours);
+		onresolve?.(ours);
 	}
 
 	function acceptTheirs(): void {
 		currentChunk = 0;
 		applyToCenter(theirs);
+		onresolve?.(theirs);
+	}
+
+	function applyManual(): void {
+		if (!centerEditorView) return;
+		const content = centerEditorView.state.doc.toString();
+		onresolve?.(content);
 	}
 
 	onMount(() => {
@@ -181,9 +197,14 @@ export function processConfig(config: AppConfig): string {
 </script>
 
 <div class="merge-toolbar">
-	<button class="merge-btn ours" type="button" onclick={acceptOurs}>Accept Ours</button>
-	<button class="merge-btn theirs" type="button" onclick={acceptTheirs}>Accept Theirs</button>
-	<span class="merge-toolbar-label">Chunk: {currentChunk + 1}</span>
+	<button class="merge-btn ours" type="button" onclick={acceptOurs} disabled={resolved}>Accept Ours</button>
+	<button class="merge-btn theirs" type="button" onclick={acceptTheirs} disabled={resolved}>Accept Theirs</button>
+	<button class="merge-btn apply" type="button" onclick={applyManual} disabled={resolved}>Apply Manual</button>
+	{#if resolved}
+		<span class="merge-toolbar-label resolved-label">Resolved</span>
+	{:else}
+		<span class="merge-toolbar-label">Chunk: {currentChunk + 1}</span>
+	{/if}
 </div>
 
 <div class="merge-container">
@@ -289,6 +310,20 @@ export function processConfig(config: AppConfig): string {
 
 	.merge-btn.theirs {
 		border-color: var(--color-info);
+	}
+
+	.merge-btn.apply {
+		border-color: var(--color-accent);
+	}
+
+	.merge-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.resolved-label {
+		color: var(--color-success);
+		font-weight: 600;
 	}
 
 	:global(.cm-mergeView) {

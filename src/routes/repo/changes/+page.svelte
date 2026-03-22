@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { repoStore } from '$lib/stores/repo.svelte';
 	import { changesStore, type FileChangeKind } from '$lib/stores/changes.svelte';
+	import { conflictStore } from '$lib/stores/conflict.svelte';
 	import { diffStore, type DiffHunkInfo } from '$lib/stores/diff.svelte';
 	import { commitStore } from '$lib/stores/commit.svelte';
 	import { listen } from '@tauri-apps/api/event';
@@ -99,6 +101,7 @@
 			case 'Deleted': return 'D';
 			case 'Renamed': return 'R';
 			case 'Typechange': return 'T';
+			case 'Conflicted': return 'C';
 		}
 	}
 
@@ -110,6 +113,7 @@
 			case 'Deleted': return 'deleted';
 			case 'Renamed': return 'renamed';
 			case 'Typechange': return 'typechange';
+			case 'Conflicted': return 'conflicted';
 		}
 	}
 
@@ -168,6 +172,16 @@
 </script>
 
 <div class="changes-workspace">
+	{#if conflictStore.isMerging}
+		<div class="conflict-banner">
+			<span class="conflict-banner-icon">!</span>
+			<span class="conflict-banner-text">
+				Merge in progress — {conflictStore.conflictCount} conflicted file{conflictStore.conflictCount !== 1 ? 's' : ''}
+			</span>
+			<button class="conflict-banner-btn" onclick={() => goto('/repo/resolve')}>Resolve Conflicts</button>
+		</div>
+	{/if}
+
 	{#if changesStore.loading && changesStore.files.length === 0}
 		<!-- Loading state (only when no cached files) -->
 		<div class="state-message">
@@ -625,6 +639,7 @@
 	.status-badge.staged.deleted   { background: var(--color-danger); color: white; }
 	.status-badge.staged.renamed   { background: var(--color-warning); color: white; }
 	.status-badge.staged.typechange { background: var(--color-text-muted); color: white; }
+	.status-badge.staged.conflicted { background: var(--color-danger); color: white; }
 
 	/* Unstaged badges: outline style */
 	.status-badge.unstaged.added     { border: 1px solid var(--color-success); color: var(--color-success); }
@@ -632,6 +647,7 @@
 	.status-badge.unstaged.deleted   { border: 1px solid var(--color-danger); color: var(--color-danger); }
 	.status-badge.unstaged.renamed   { border: 1px solid var(--color-warning); color: var(--color-warning); }
 	.status-badge.unstaged.typechange { border: 1px solid var(--color-text-muted); color: var(--color-text-muted); }
+	.status-badge.unstaged.conflicted { border: 1px solid var(--color-danger); color: var(--color-danger); }
 
 	/* ── Hunk panel ────────────────────────────────────────────────── */
 
@@ -816,6 +832,55 @@
 		box-shadow: inset 3px 0 0 var(--color-danger);
 	}
 
+	/* ── Conflict banner ────────────────────────────────────────────── */
+
+	.conflict-banner {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-5);
+		background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+		border-bottom: 1px solid var(--color-danger);
+		flex-shrink: 0;
+	}
+
+	.conflict-banner-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		background: var(--color-danger);
+		color: white;
+		border-radius: 50%;
+		font-weight: 700;
+		font-size: 12px;
+		flex-shrink: 0;
+	}
+
+	.conflict-banner-text {
+		flex: 1;
+		font-size: var(--text-body-sm-size);
+		color: var(--color-text-primary);
+		font-weight: 500;
+	}
+
+	.conflict-banner-btn {
+		padding: var(--space-1) var(--space-4);
+		font-size: var(--text-body-sm-size);
+		font-weight: 500;
+		background: var(--color-danger);
+		color: white;
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: opacity var(--transition-fast);
+		flex-shrink: 0;
+	}
+
+	.conflict-banner-btn:hover {
+		opacity: 0.85;
+	}
 	/* ── Commit form ──────────────────────────────────────────────────────── */
 
 	.commit-form {

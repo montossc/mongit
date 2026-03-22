@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { repoStore } from '$lib/stores/repo.svelte';
+	import { conflictStore } from '$lib/stores/conflict.svelte';
 	import { syncStore } from '$lib/stores/sync.svelte';
 
 	let { children } = $props();
@@ -10,16 +11,21 @@
 	onMount(() => {
 		if (!repoStore.activeRepoPath) {
 			goto('/');
-		} else {
-			// Load tracking info on mount
-			syncStore.refreshAheadBehind(repoStore.activeRepoPath);
+			return;
 		}
+		// Load tracking info on mount
+		syncStore.refreshAheadBehind(repoStore.activeRepoPath);
+		// Load merge state so Resolve tab appears when merging
+		conflictStore.loadMergeState(repoStore.activeRepoPath);
 	});
 
-	const tabs = [
+	const tabs = $derived([
 		{ label: 'Summary', href: '/repo' },
 		{ label: 'Changes', href: '/repo/changes' },
-	] as const;
+		...(conflictStore.isMerging
+			? [{ label: `Resolve (${conflictStore.conflictCount})`, href: '/repo/resolve' }]
+			: []),
+	] as const);
 
 	// ── Sync handlers with auto-refresh ─────────────────────────────────
 
