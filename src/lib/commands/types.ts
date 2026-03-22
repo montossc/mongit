@@ -39,6 +39,10 @@ export interface CommandContext {
 	currentRoute: string;
 	/** Whether a repository is currently open. */
 	hasRepo: boolean;
+	/** The current branch name, or null if no repo is open. */
+	currentBranch: string | null;
+	/** Whether the working tree has uncommitted changes. */
+	hasChanges: boolean;
 }
 
 /** A registered command in the palette. */
@@ -47,6 +51,8 @@ export interface Command {
 	id: string;
 	/** Human-readable label shown in the palette. */
 	label: string;
+	/** Short description shown below the label in the palette. */
+	description?: string;
 	/** Category for grouping in results. */
 	category: CommandCategory;
 	/** Optional keyboard shortcut hint (display only — binding is separate). */
